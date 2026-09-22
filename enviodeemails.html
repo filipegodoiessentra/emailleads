@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de E-mail para Vendedores</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+        
+        <!-- Header -->
+        <div class="bg-blue-600 px-6 py-4">
+            <h1 class="text-white text-xl font-semibold flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Notificar Vendedor
+            </h1>
+        </div>
+
+        <div class="p-6 space-y-6">
+            
+            <!-- Input Lead -->
+            <div>
+                <label for="leadNumber" class="block text-sm font-medium text-gray-700 mb-1">Número(s) do Lead (separados por vírgula ou linha)</label>
+                <div class="relative">
+                    <textarea 
+                        id="leadNumber" 
+                        rows="3"
+                        placeholder="Ex: L26-0389583, L26-0389584" 
+                        class="w-full pl-4 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all uppercase resize-y"
+                    ></textarea>
+                </div>
+            </div>
+
+            <!-- Select Vendedor -->
+            <div>
+                <label for="sellerSelect" class="block text-sm font-medium text-gray-700 mb-1">Vendedor</label>
+                <select 
+                    id="sellerSelect" 
+                    class="w-full pl-4 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none bg-white"
+                >
+                    <option value="" disabled selected>Selecione um vendedor...</option>
+                    <!-- Options populated via JS -->
+                </select>
+                <!-- Custom Arrow for Select -->
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700" style="margin-top: -32px; margin-right: 28px; float: right; position: relative;">
+                    <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                </div>
+            </div>
+
+            <!-- Preview do Email (Optional but good for UX) -->
+            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <p class="text-xs text-gray-500 mb-2 font-semibold uppercase tracking-wider">Preview do E-mail</p>
+                <div id="emailPreview" class="text-sm text-gray-700 whitespace-pre-wrap">Preencha os campos para ver o preview.</div>
+            </div>
+
+            <!-- Botão Enviar -->
+            <button 
+                id="sendBtn" 
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                </svg>
+                Abrir no Outlook
+            </button>
+            
+            <p id="errorMsg" class="text-red-500 text-sm hidden text-center"></p>
+
+        </div>
+    </div>
+
+    <script>
+        // Data structure for sellers - easy to add more in the future
+        const sellers = [
+            { id: "338", name: "Matheus Silva", firstName: "Matheus", email: "MatheusSilva@essentra.com" },
+            { id: "340", name: "Pablo Silva", firstName: "Pablo", email: "PabloSilva@essentra.com" },
+            { id: "346", name: "Cristiana Roseto", firstName: "Cristiana", email: "CristianaRoseto@essentra.com" }
+        ];
+
+        // DOM Elements
+        const leadInput = document.getElementById('leadNumber');
+        const sellerSelect = document.getElementById('sellerSelect');
+        const sendBtn = document.getElementById('sendBtn');
+        const previewDiv = document.getElementById('emailPreview');
+        const errorMsg = document.getElementById('errorMsg');
+
+        // Initialize Select Options
+        function initSelect() {
+            sellers.forEach(seller => {
+                const option = document.createElement('option');
+                option.value = seller.id;
+                option.textContent = `${seller.id} - ${seller.name}`;
+                sellerSelect.appendChild(option);
+            });
+        }
+
+        // Extrai os leads ignorando espaços e linhas vazias
+        function getLeads() {
+            const rawValue = leadInput.value;
+            return rawValue.split(/[\n,]+/).map(l => l.trim()).filter(l => l !== '');
+        }
+
+        // Validate form and update UI
+        function updateUI() {
+            const leads = getLeads();
+            const leadsStr = leads.join(', ').toUpperCase();
+            const selectedSellerId = sellerSelect.value;
+            
+            if (leads.length > 0 && selectedSellerId) {
+                sendBtn.disabled = false;
+                errorMsg.classList.add('hidden');
+                
+                // Find selected seller
+                const seller = sellers.find(s => s.id === selectedSellerId);
+                
+                // Regras de plural/singular
+                const isPlural = leads.length > 1;
+                const subject = isPlural ? `Leads ${leadsStr} com cadastro na Essentra` : `Lead ${leadsStr} com cadastro na Essentra`;
+                const bodyText = isPlural 
+                    ? `Por gentileza, poderia entrar em contato com os leads ${leadsStr} o mais breve possível? Eles realizaram um contato por meio do formulário mas já têm cadastro no MSS.`
+                    : `Por gentileza, poderia entrar em contato com o lead ${leadsStr} o mais breve possível? Ele realizou um contato por meio do formulário mas já tem cadastro no MSS.`;
+                
+                // Update Preview
+                previewDiv.innerHTML = `<strong>Para:</strong> ${seller.email}<br><strong>Cc:</strong> julianamartins@essentra.com<br><strong>Assunto:</strong> ${subject}<br><br>${seller.firstName}, Bom Dia!<br><br>${bodyText}<br><br>Desde já, agradeço pela atenção.<br><br>Att.,`;
+                previewDiv.classList.remove('text-gray-500');
+                previewDiv.classList.add('text-gray-800');
+
+            } else {
+                sendBtn.disabled = true;
+                previewDiv.innerHTML = "Preencha os campos para ver o preview.";
+                previewDiv.classList.add('text-gray-500');
+                previewDiv.classList.remove('text-gray-800');
+            }
+        }
+
+        // Generate Mailto link and trigger
+        function generateAndSendEmail() {
+            const leads = getLeads();
+            const leadsStr = leads.join(', ').toUpperCase();
+            const selectedSellerId = sellerSelect.value;
+            
+            if (leads.length === 0 || !selectedSellerId) {
+                errorMsg.textContent = "Por favor, informe pelo menos um lead e selecione o vendedor.";
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            const seller = sellers.find(s => s.id === selectedSellerId);
+            if (!seller) return;
+
+            const to = seller.email;
+            const cc = "julianamartins@essentra.com";
+            
+            // Regras de plural/singular
+            const isPlural = leads.length > 1;
+            const rawSubject = isPlural ? `Leads ${leadsStr} com cadastro na Essentra` : `Lead ${leadsStr} com cadastro na Essentra`;
+            const encodedSubject = encodeURIComponent(rawSubject);
+
+            const bodyText = isPlural 
+                ? `Por gentileza, poderia entrar em contato com os leads ${leadsStr} o mais breve possível? Eles realizaram um contato por meio do formulário mas já têm cadastro no MSS.`
+                : `Por gentileza, poderia entrar em contato com o lead ${leadsStr} o mais breve possível? Ele realizou um contato por meio do formulário mas já tem cadastro no MSS.`;
+
+            // Construct Body
+            // We use standard string template literals, but then manually format the line breaks for Outlook.
+            const rawBodyLines = [
+                `${seller.firstName}, Bom Dia!`,
+                ``,
+                bodyText,
+                ``,
+                `Desde já, agradeço pela atenção.`,
+                ``,
+                `Att.,`
+            ];
+
+            // Encode each line separately, then join with Outlook's preferred newline format
+            const encodedBody = rawBodyLines.map(line => encodeURIComponent(line)).join('%0D%0A');
+
+            // Build final mailto string
+            const mailtoLink = `mailto:${to}?cc=${cc}&subject=${encodedSubject}&body=${encodedBody}`;
+
+            // Create a temporary anchor element to click
+            const link = document.createElement('a');
+            link.href = mailtoLink;
+            link.target = "_blank"; // Tries to prevent current page from unloading if default mail app isn't set perfectly
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Event Listeners
+        leadInput.addEventListener('input', updateUI);
+        sellerSelect.addEventListener('change', updateUI);
+        sendBtn.addEventListener('click', generateAndSendEmail);
+
+        // Run init on load
+        initSelect();
+
+    </script>
+</body>
+</html>
