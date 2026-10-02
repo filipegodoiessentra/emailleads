@@ -32,6 +32,9 @@ async function run() {
         await page.goto(url);
         await page.waitForFunction(() => !document.getElementById('newBtn').disabled);
         assert(page.url().endsWith('/devolucoes/'));
+        assert.equal(await page.locator('h1').textContent(), 'Controle de devoluções');
+        assert.equal(await page.title(), 'Controle de devoluções | Essentra');
+        assert.equal(await page.locator('.heading .eyebrow').count(), 0);
         assert.equal(await page.locator('.topbar a[href="../enviodeemails.html"]').count(), 0);
         assert.equal(await page.locator('.brand span').count(), 0);
         async function readExcel(current) {
