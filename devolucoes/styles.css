@@ -25,7 +25,7 @@ h1 { font-size: 30px; margin: 0; font-weight: 600; }
 h2 { font-size: 21px; margin: 0; overflow-wrap: anywhere; }
 h3 { font-size: 14px; font-weight: 600; margin: 0 0 14px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.forward-actions { margin-top: 16px; }
+#messageDetails { margin-bottom: 16px; }#messageDetails summary { cursor: pointer; color: var(--blue); }#fullEmailBody { white-space: pre-wrap; line-height: 1.6; }
 .notice { margin: 14px 0; color: var(--green); min-height: 20px; overflow-wrap: anywhere; }
 .notice.error, .error { color: #af3030; }
 .metrics { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 22px 0; gap: 20px; }

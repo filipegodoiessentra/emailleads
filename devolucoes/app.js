@@ -8,6 +8,8 @@ const sellers = [
 const copies = ['BrazilWhse@essentra.com', 'EmersonSantos@essentra.com', 'BrazilSamples@essentra.com'];
 const stages = ['Envio pendente', 'E-mail enviado', 'Resposta recebida', 'Destino registrado', 'Concluído'];
 const maxEmailSize = 20 * 1024 * 1024;
+const maxMailtoLength = 2000;
+const emailHistories = new WeakMap();
 const byId = id => document.getElementById(id);
 let database;
 let cases = [];
@@ -28,17 +30,55 @@ function formatDate(value) { return new Date(value).toLocaleString('pt-BR', { da
 function bodyFor(seller) {
     return `Boa Tarde ${seller.firstName},\r\n\r\nRecebemos o retorno via correio dessa amostra. \r\nFavor informar imediatamente se vai ser reenviado ou deve voltar para o estoque.\r\nCaso reenviado, favor confirmar o endereço e os dados do destinatário/recebedor responsável. \r\n\r\nAguardamos seu retorno.`;
 }
+function completeBody(seller, originalText = '') {
+    return originalText ? `${bodyFor(seller)}\r\n\r\n${originalText.replace(/\r\n?|\n/g, '\r\n')}` : bodyFor(seller);
+}
+async function extractOriginal(buffer, name) {
+    try {
+        if (!window.EmailParser) throw new Error('O leitor de e-mails não carregou. Recarregue a página para tentar novamente.');
+        return { originalText: await EmailParser.extractHistory(buffer, name), extractionError: '' };
+    } catch (error) { return { originalText: '', extractionError: error.message || 'Não foi possível extrair o histórico deste e-mail.' }; }
+}
+function originalFor(email) {
+    if (typeof email.originalText === 'string') return Promise.resolve({ originalText: email.originalText, extractionError: email.extractionError || '' });
+    if (!emailHistories.has(email)) emailHistories.set(email, (async () => {
+        const response = await fetch(email.data);
+        return extractOriginal(await response.arrayBuffer(), email.name);
+    })());
+    return emailHistories.get(email);
+}
+function mailtoFor(record, body) {
+    const seller = sellers.find(item => item.id === record.sellerId);
+    return `mailto:${seller.email}?cc=${encodeURIComponent(copies.join(';'))}&subject=${encodeURIComponent(subjectFor(record))}&body=${encodeURIComponent(body)}`;
+}
+async function prepareMessage(record) {
+    const original = await originalFor(record.mainEmail);
+    const seller = sellers.find(item => item.id === record.sellerId);
+    const body = completeBody(seller, original.originalText);
+    const warning = original.extractionError ? `Histórico não extraído: ${original.extractionError}` :
+        mailtoFor(record, body).length > maxMailtoLength ? 'O histórico é longo para o link do Outlook. A mensagem abrirá com o texto padrão; copie a mensagem completa e substitua o corpo antes de enviar.' : '';
+    return { body, warning };
+}
 async function downloadEmail(email) {
     const response = await fetch(email.data);
     download(await response.blob(), email.name);
 }
-async function prepareForward(record) {
-    try {
-        await downloadEmail(record.mainEmail);
-        notify('Original baixado. Abra o arquivo no Outlook, use Encaminhar e confirme o envio no caso.');
-    } catch {
-        byId('detailError').textContent = 'Caso salvo, mas não foi possível baixar o original. Tente novamente pelo botão de download.';
+function subjectFor(record) { return `Devolução de amostra - ${record.reference} [${record.code}]`; }
+async function openOutlook(record) {
+    const seller = sellers.find(item => item.id === record.sellerId);
+    const message = await prepareMessage(record);
+    if (selectedId === record.id) {
+        byId('fullEmailBody').value = message.body;
+        byId('outlookWarning').textContent = message.warning;
+        byId('copyEmailFeedback').textContent = '';
     }
+    const link = document.createElement('a');
+    const fullLink = mailtoFor(record, message.body);
+    link.href = fullLink.length <= maxMailtoLength ? fullLink : mailtoFor(record, bodyFor(seller));
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
 }
 function openDatabase() {
     return new Promise((resolve, reject) => {
@@ -97,9 +137,10 @@ function updatePreview() {
     const seller = sellers.find(item => item.id === byId('seller').value);
     byId('createBtn').disabled = !mainEmail || !seller || !byId('reference').value.trim() || busy;
     byId('recipients').textContent = seller ? `Para: ${seller.email}\nCc: ${copies.join('; ')}` : '';
-    byId('bodyPreview').textContent = seller ? bodyFor(seller) : 'Selecione o vendedor.';
+    byId('subjectPreview').textContent = seller ? `Assunto: Devolução de amostra - ${byId('reference').value.trim()}` : '';
+    byId('bodyPreview').textContent = seller ? completeBody(seller, mainEmail?.originalText) : 'Selecione o vendedor.';
 }
-async function readEmail(file) {
+async function readEmail(file, includeHistory = false) {
     if (!file || !/\.(msg|eml)$/i.test(file.name)) throw new Error('Insira um e-mail .msg ou .eml. Se o Outlook não entregar o arquivo ao arrastar, salve o e-mail e selecione-o aqui.');
     if (!file.size || file.size > maxEmailSize) throw new Error('O e-mail deve ter conteúdo e no máximo 20 MB.');
     const data = await new Promise((resolve, reject) => {
@@ -115,7 +156,8 @@ async function readEmail(file) {
     } else if (!/^(from|to|subject|date|received|mime-version|return-path|message-id|content-type):/im.test(new TextDecoder().decode(bytes))) {
         throw new Error('O arquivo não contém cabeçalhos de e-mail .eml.');
     }
-    return { name: file.name, size: file.size, data, addedAt: new Date().toISOString() };
+    const original = includeHistory ? await extractOriginal(bytes.buffer, file.name) : {};
+    return { name: file.name, size: file.size, data, addedAt: new Date().toISOString(), ...original };
 }
 function wireDrop(zoneId, inputId, handler) {
     const zone = byId(zoneId);
@@ -140,8 +182,9 @@ async function attachMain(file) {
     busy = true; updatePreview();
     byId('newError').textContent = '';
     try {
-        mainEmail = await readEmail(file);
+        mainEmail = await readEmail(file, true);
         byId('mainFileName').textContent = `${mainEmail.name} · ${(mainEmail.size / 1024).toFixed(1)} KB`;
+        if (mainEmail.extractionError) byId('newError').textContent = `Arquivo selecionado, mas o histórico não foi extraído: ${mainEmail.extractionError}`;
         byId('caseFields').disabled = false;
         if (!byId('reference').value) byId('reference').value = file.name.replace(/\.(msg|eml)$/i, '').slice(0, 180);
     } catch (error) { byId('newError').textContent = error.message; }
@@ -155,13 +198,23 @@ function showDetail(id) {
     byId('detailCode').textContent = record.code;
     byId('detailTitle').textContent = record.reference;
     byId('detailSeller').textContent = `${seller.id} · ${seller.name} · ${seller.email}`;
-    byId('forwardTo').textContent = `Para: ${seller.email}`;
-    byId('forwardCc').textContent = `Cc: ${copies.join('; ')}`;
-    byId('forwardBody').textContent = bodyFor(seller);
     byId('steps').innerHTML = stages.slice(1).map((label, index) => `<li class="${record.stage > index + 1 ? 'done' : record.stage === index + 1 ? 'current' : ''}">${index + 1}. ${index === 2 ? 'Reenviado / Estoque' : label}</li>`).join('');
     const emails = [['principal', 'E-mail principal', record.mainEmail], ['resposta', 'Resposta do vendedor', record.responseEmail]].filter(item => item[2]);
     byId('attachments').innerHTML = emails.map(([kind, label, email]) => `<div class="attachment"><span>${escapeHtml(label)}<small>${escapeHtml(email.name)} · ${(email.size / 1024).toFixed(1)} KB</small></span><button data-download="${kind}" title="Baixar e-mail original" aria-label="Baixar ${escapeHtml(label)}"><i data-lucide="download" aria-hidden="true"></i></button></div>`).join('');
     byId('pendingSection').hidden = record.stage !== 0;
+    byId('outlookWarning').textContent = '';
+    byId('copyEmailFeedback').textContent = '';
+    byId('fullEmailBody').value = '';
+    byId('copyEmailBtn').disabled = true;
+    byId('messageDetails').open = false;
+    if (record.stage === 0) prepareMessage(record).then(message => {
+        if (selectedId !== record.id) return;
+        byId('fullEmailBody').value = message.body;
+        byId('outlookWarning').textContent = message.warning;
+        byId('copyEmailBtn').disabled = false;
+    }).catch(() => {
+        if (selectedId === record.id) byId('outlookWarning').textContent = 'Não foi possível preparar o histórico. Baixe e confira o e-mail original.';
+    });
     byId('responseSection').hidden = record.stage !== 1;
     byId('outcomeSection').hidden = record.stage !== 2;
     byId('outcomeSummary').hidden = record.stage < 3;
@@ -181,7 +234,9 @@ function assertRecord(record) {
     const validEmail = email => email && typeof email.name === 'string' && /\.(msg|eml)$/i.test(email.name) &&
         Number.isInteger(email.size) && email.size > 0 && email.size <= maxEmailSize && validDate(email.addedAt) &&
         typeof email.data === 'string' && /^data:[a-zA-Z0-9.+/;-]*;base64,[A-Za-z0-9+/]+={0,2}$/.test(email.data) &&
-        email.data.split(',')[1].length <= Math.ceil(maxEmailSize / 3) * 4;
+        email.data.split(',')[1].length <= Math.ceil(maxEmailSize / 3) * 4 &&
+        (email.originalText == null || (typeof email.originalText === 'string' && email.originalText.length <= maxEmailSize * 2)) &&
+        (email.extractionError == null || (typeof email.extractionError === 'string' && email.extractionError.length <= 2000));
     if (!record || typeof record.id !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(record.id) ||
         typeof record.code !== 'string' || record.code.length > 100 ||
         typeof record.reference !== 'string' || !record.reference.trim() || record.reference.length > 180 ||
@@ -302,7 +357,8 @@ byId('newForm').addEventListener('submit', async event => {
         assertRecord(record);
         await writeCases([record]); await refresh();
         byId('newDialog').close(); showDetail(record.id);
-        await prepareForward(record);
+        await openOutlook(record);
+        notify('Caso salvo. Confirme o envio depois de enviar o e-mail no Outlook.');
     } catch (error) { byId('newError').textContent = error.message; }
     finally { busy = false; updatePreview(); }
 });
@@ -316,18 +372,22 @@ byId('attachments').addEventListener('click', async event => {
         await downloadEmail(email);
     } catch { byId('detailError').textContent = 'Não foi possível baixar o e-mail.'; }
 });
-byId('forwardBtn').addEventListener('click', () => prepareForward(cases.find(item => item.id === selectedId)));
-document.querySelectorAll('[data-copy-forward]').forEach(button => button.addEventListener('click', async () => {
-    const record = cases.find(item => item.id === selectedId);
-    const seller = sellers.find(item => item.id === record.sellerId);
-    const values = { to: seller.email, cc: copies.join('; '), body: bodyFor(seller) };
+byId('outlookBtn').addEventListener('click', () => {
+    openOutlook(cases.find(item => item.id === selectedId)).catch(() => {
+        byId('detailError').textContent = 'Não foi possível abrir a mensagem. Baixe e confira o e-mail original.';
+    });
+});
+byId('copyEmailBtn').addEventListener('click', async () => {
     try {
-        await navigator.clipboard.writeText(values[button.dataset.copyForward]);
-        byId('detailError').textContent = '';
-        notify('Copiado para a área de transferência.');
-    } catch { byId('detailError').textContent = 'O navegador bloqueou a cópia. Selecione e copie o texto exibido acima.'; }
-}));
-byId('sentBtn').addEventListener('click', () => transition(0, 1, 'Encaminhamento do e-mail confirmado pelo usuário'));
+        await navigator.clipboard.writeText(byId('fullEmailBody').value);
+        byId('copyEmailFeedback').textContent = 'Texto exibido copiado. Cole no corpo do e-mail no Outlook antes de enviar.';
+    } catch {
+        byId('messageDetails').open = true;
+        byId('fullEmailBody').focus(); byId('fullEmailBody').select();
+        byId('copyEmailFeedback').textContent = 'O navegador bloqueou a cópia automática. O texto completo está selecionado para copiar manualmente.';
+    }
+});
+byId('sentBtn').addEventListener('click', () => transition(0, 1, 'Envio do e-mail confirmado pelo usuário'));
 byId('outcomeForm').addEventListener('change', () => {
     const resend = new FormData(byId('outcomeForm')).get('outcome') === 'resent';
     byId('resendFields').hidden = !resend;

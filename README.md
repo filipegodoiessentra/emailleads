@@ -10,10 +10,10 @@ O acesso sem a barra final (`/devolucoes`) é redirecionado pelo servidor estát
 
 - Primeiro insira o e-mail principal do Outlook (`.msg` ou `.eml`). Depois selecione
 	o vendedor, usando os mesmos números, nomes e endereços do dashboard existente.
-- Salvar e baixar original cria um caso com envio pendente e baixa o mesmo e-mail,
-	sem alterar seu conteúdo. Abra-o no Outlook, use **Encaminhar** e cole o texto
-	e os destinatários disponíveis nos botões de cópia. Após enviar, confirme o
-	encaminhamento no caso para registrar **1. E-mail enviado**.
+- Salvar e abrir no Outlook cria um caso com envio pendente e abre uma mensagem
+	nova com vendedor, cópias, assunto, texto padrão e histórico textual do e-mail
+	principal preenchidos, quando legível e dentro do limite do link. Após enviar no Outlook,
+	confirme o envio no caso para registrar **1. E-mail enviado**.
 - Inserir o arquivo da resposta do vendedor registra **2. Resposta recebida**.
 	Sem esse e-mail não é possível registrar destino nem concluir.
 - Registre **3. Reenviado / Voltou para estoque**. O reenvio exige endereço
@@ -21,14 +21,31 @@ O acesso sem a barra final (`/devolucoes`) é redirecionado pelo servidor estát
 - **4. Concluído** move o caso para a seção Concluídos, sem excluir os arquivos ou
 	o histórico. Reativar retorna à etapa de resposta recebida para rever o destino.
 
-Não é criada uma mensagem nova via `mailto:` no aplicativo de devoluções.
-O encaminhamento é feito manualmente no Outlook a partir do e-mail original,
-preservando o histórico da mensagem e os anexos conforme o comportamento do
-Outlook. O app não abre o arquivo automaticamente, não confirma o envio e não
-acessa sua caixa de entrada. Encaminhamento automático exigiria autenticação
-Microsoft 365 e permissões configuradas no Microsoft Entra ID.
-Os e-mails inseridos ficam associados ao caso e podem ser baixados no formato
-original. Caso sua versão do Outlook não
+O Outlook é aberto via `mailto:` para criar uma mensagem nova. Ao inserir o
+e-mail principal, o app extrai seu corpo de texto (ou converte HTML para texto)
+e acrescenta remetente, destinatários, data e assunto abaixo da mensagem padrão.
+Isso inclui o histórico anterior que já estiver no corpo do e-mail arrastado;
+não consulta outras mensagens da conversa na caixa de entrada.
+
+Não é um encaminhamento nativo: formatação, imagens e arquivos anexados não são
+transportados pelo `mailto:`. Os nomes dos anexos são indicados no histórico,
+mas os arquivos precisam ser anexados separadamente no Outlook.
+
+O limite conservador para a URL codificada é de 2.000 caracteres. Quando a mensagem
+completa excede esse limite, o Outlook abre somente com o texto padrão e o app
+exibe um aviso. Use **Copiar mensagem completa** e substitua o corpo no Outlook;
+o histórico não é cortado. O texto também está disponível em **Mensagem completa
+com histórico**, inclusive para seleção manual se o navegador bloquear a cópia.
+O limite real pode variar conforme navegador, sistema e versão do Outlook.
+
+Arquivos protegidos, danificados ou MSG com apenas corpo RTF podem não permitir
+extração. Nesses casos, o app avisa e mantém o original para conferência no Outlook,
+sem alegar que o histórico foi incluído. Backups antigos sem texto extraído continuam
+compatíveis: a leitura do original é feita ao abrir a mensagem do caso.
+
+O navegador não confirma o envio nem acessa a caixa de entrada.
+Os e-mails inseridos continuam salvos no caso e no backup JSON e podem
+ser baixados no formato original. Caso sua versão do Outlook não
 disponibilize um arquivo ao arrastar, salve a mensagem como `.msg` ou `.eml` e
 selecione o arquivo. O limite é de 20 MB por e-mail.
 
@@ -66,6 +83,20 @@ local seguro.
 A geração do Excel usa ExcelJS 4.4.0, distribuído localmente em
 `devolucoes/exceljs.min.js`, com licença em `devolucoes/exceljs.LICENSE`.
 Origem: `https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js`.
+
+A extração utiliza PostalMime 4.0.2 e @kenjiuno/msgreader 1.28.0, empacotados
+localmente em `devolucoes/email-parser.min.js` a partir de `devolucoes/email-parser.js`.
+As licenças desses leitores e das dependências estão em
+`devolucoes/email-parser-licenses.zip`. O arquivo `tests/historico.msg` é a amostra
+pública `test/test1.msg` do projeto `HiraokaHyperTools/msgreader` (Apache-2.0),
+usada exclusivamente para testar a leitura do formato MSG.
+
+Para reconstruir o leitor depois de alterar seu código:
+
+```sh
+npm install --prefix /tmp/emailleads-checks @kenjiuno/msgreader@1.28.0 postal-mime@4.0.2 esbuild
+NODE_PATH=/tmp/emailleads-checks/node_modules /tmp/emailleads-checks/node_modules/.bin/esbuild devolucoes/email-parser.js --bundle --platform=browser --format=iife --global-name=EmailParser --minify --legal-comments=inline --outfile=devolucoes/email-parser.min.js
+```
 
 ## Verificação
 

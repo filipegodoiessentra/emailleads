@@ -32,6 +32,7 @@ async function run() {
         await page.goto(url);
         await page.waitForFunction(() => !document.getElementById('newBtn').disabled);
         assert(page.url().endsWith('/devolucoes/'));
+        assert.equal(await page.locator('.topbar a[href="../enviodeemails.html"]').count(), 0);
         async function readExcel(current) {
             const downloading = current.waitForEvent('download');
             await current.locator('#excelBtn').click();
@@ -49,11 +50,13 @@ async function run() {
         assert.equal(emptyWorkbook.getWorksheet('Histórico').rowCount, 1);
         await page.evaluate(() => {
             window.sentLinks = [];
-            window.copiedTexts = [];
-            Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async value => window.copiedTexts.push(value) } });
+            window.emailDownloads = [];
+            window.copiedBodies = [];
+            Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async value => window.copiedBodies.push(value) } });
             const original = HTMLAnchorElement.prototype.click;
             HTMLAnchorElement.prototype.click = function () {
                 if (this.href.startsWith('mailto:')) { window.sentLinks.push(this.href); return; }
+                if (/\.(msg|eml)$/i.test(this.download)) window.emailDownloads.push(this.download);
                 original.call(this);
             };
         });
@@ -70,20 +73,69 @@ async function run() {
         assert.deepEqual(await page.locator('#seller option').allTextContents(), ['Selecione o vendedor', '338 - Matheus Silva', '340 - Pablo Silva', '346 - Cristiana Roseto']);
         await page.locator('#seller').selectOption('346');
         await page.locator('#reference').fill('Amostra <script>segura</script>');
-        const forwardDownload = page.waitForEvent('download');
         await page.locator('#createBtn').click();
         await page.locator('#detailDialog').waitFor({ state: 'visible' });
-        const forwardOriginal = await forwardDownload;
-        assert.equal(forwardOriginal.suggestedFilename(), email.name);
-        assert.deepEqual(await fs.readFile(await forwardOriginal.path()), email.buffer);
-        assert.deepEqual(await page.evaluate(() => window.sentLinks), []);
-        await page.locator('[data-copy-forward="to"]').click();
-        await page.locator('[data-copy-forward="cc"]').click();
-        await page.locator('[data-copy-forward="body"]').click();
-        const copied = await page.evaluate(() => window.copiedTexts);
-        assert.equal(copied[0], 'CristianaRoseto@essentra.com');
-        assert.equal(copied[1], 'BrazilWhse@essentra.com; EmersonSantos@essentra.com; BrazilSamples@essentra.com');
-        assert.equal(copied[2], 'Boa Tarde Cristiana,\r\n\r\nRecebemos o retorno via correio dessa amostra. \r\nFavor informar imediatamente se vai ser reenviado ou deve voltar para o estoque.\r\nCaso reenviado, favor confirmar o endereço e os dados do destinatário/recebedor responsável. \r\n\r\nAguardamos seu retorno.');
+        await page.waitForFunction(() => window.sentLinks.length === 1);
+        const mailto = new URL(await page.evaluate(() => window.sentLinks[0]));
+        assert.equal(mailto.pathname, 'CristianaRoseto@essentra.com');
+        assert.equal(mailto.searchParams.get('cc'), 'BrazilWhse@essentra.com;EmersonSantos@essentra.com;BrazilSamples@essentra.com');
+        assert.equal(mailto.searchParams.get('subject'), `Devolução de amostra - Amostra <script>segura</script> [${await page.locator('#detailCode').textContent()}]`);
+        assert.equal(mailto.searchParams.get('body'), 'Boa Tarde Cristiana,\r\n\r\nRecebemos o retorno via correio dessa amostra. \r\nFavor informar imediatamente se vai ser reenviado ou deve voltar para o estoque.\r\nCaso reenviado, favor confirmar o endereço e os dados do destinatário/recebedor responsável. \r\n\r\nAguardamos seu retorno.\r\n\r\n----- E-mail original -----\r\nDe: cliente@example.com\r\nPara: BrazilSamples@essentra.com\r\nAssunto: Amostra original\r\n\r\nAmostra retornada pelo correio.');
+        assert.deepEqual(await page.evaluate(() => window.emailDownloads), []);
+        await page.locator('#outlookBtn').click();
+        await page.waitForFunction(() => window.sentLinks.length === 2);
+        assert.equal(await page.evaluate(() => window.sentLinks[1]), mailto.href);
+        const msgBytes = [...await fs.readFile(path.join(__dirname, 'historico.msg'))];
+        const parsedMsg = await page.evaluate(async bytes => EmailParser.extractHistory(new Uint8Array(bytes).buffer, 'historico.msg'), msgBytes);
+        assert.match(parsedMsg, /Assunto: title/);
+        assert.match(parsedMsg, /Para: to@example.com/);
+        assert.match(parsedMsg, /Cc: cc@example.com/);
+        assert(parsedMsg.endsWith('body'));
+        const parsedHtml = await page.evaluate(async () => {
+            const source = 'From: =?UTF-8?B?Sm9zw6k=?= <jose@example.com>\r\nTo: cliente@example.com\r\nSubject: =?UTF-8?B?RGV2b2x1w6fDo28=?=\r\nDate: Fri, 2 Oct 2026 12:00:00 +0000\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n' + btoa(unescape(encodeURIComponent('<p>Ação recebida.</p><blockquote><p>Histórico anterior completo.</p></blockquote><img src="invalid" onerror="window.unsafeEmail = true"><script>window.unsafeEmail = true</script>')));
+            return EmailParser.extractHistory(new TextEncoder().encode(source).buffer, 'html.eml');
+        });
+        assert.match(parsedHtml, /De: José <jose@example.com>/);
+        assert.match(parsedHtml, /Assunto: Devolução/);
+        assert.match(parsedHtml, /Ação recebida/);
+        assert.match(parsedHtml, /Histórico anterior completo/);
+        assert(!parsedHtml.includes('window.unsafeEmail'));
+        assert.equal(await page.evaluate(() => window.unsafeEmail), undefined);
+        const legacyHistory = await page.evaluate(async () => {
+            const original = { ...cases[0].mainEmail };
+            delete original.originalText; delete original.extractionError;
+            return prepareMessage({ ...cases[0], mainEmail: original });
+        });
+        assert.equal(legacyHistory.body, mailto.searchParams.get('body'));
+        const longMessage = await page.evaluate(async () => {
+            const record = { ...cases[0], mainEmail: { ...cases[0].mainEmail, originalText: 'INÍCIO DO HISTÓRICO\n' + 'Conteúdo anterior.\n'.repeat(1000) + 'FIM DO HISTÓRICO' } };
+            await openOutlook(record);
+            return { text: document.getElementById('fullEmailBody').value, warning: document.getElementById('outlookWarning').textContent, link: window.sentLinks.at(-1) };
+        });
+        assert.match(longMessage.warning, /histórico é longo/);
+        assert(longMessage.text.endsWith('FIM DO HISTÓRICO'));
+        assert(longMessage.text.includes('INÍCIO DO HISTÓRICO'));
+        assert(longMessage.link.length <= 2000);
+        assert(!new URL(longMessage.link).searchParams.get('body').includes('INÍCIO DO HISTÓRICO'));
+        await page.locator('#copyEmailBtn').click();
+        assert.equal(await page.evaluate(() => window.copiedBodies.at(-1)), longMessage.text);
+        assert.match(await page.locator('#outlookWarning').textContent(), /histórico é longo/);
+        await page.evaluate(() => {
+            navigator.clipboard.writeText = async () => { throw new Error('Cópia bloqueada'); };
+        });
+        await page.locator('#copyEmailBtn').click();
+        assert(await page.locator('#messageDetails').evaluate(element => element.open));
+        assert.match(await page.locator('#copyEmailFeedback').textContent(), /selecionado/);
+        assert.match(await page.locator('#outlookWarning').textContent(), /histórico é longo/);
+        const unreadableHistory = await page.evaluate(async () => {
+            const result = await extractOriginal(new Uint8Array([208, 207, 17, 224, 161, 177, 26, 225]).buffer, 'corrompido.msg');
+            return prepareMessage({ ...cases[0], mainEmail: { ...cases[0].mainEmail, ...result } });
+        });
+        assert.match(unreadableHistory.warning, /Histórico não extraído/);
+        await page.locator('#outlookBtn').click();
+        await page.waitForFunction(() => window.sentLinks.length === 4);
+        assert.equal(await page.locator('#fullEmailBody').inputValue(), mailto.searchParams.get('body').replace(/\r\n/g, '\n'));
+        assert.equal(await page.locator('#outlookWarning').textContent(), '');
         assert(await page.locator('#responseSection').isHidden());
         await page.locator('#sentBtn').click();
         await page.locator('#responseSection').waitFor({ state: 'visible' });
@@ -137,6 +189,7 @@ async function run() {
         assert.equal(backup.cases[0].stage, 4);
         assert.equal(backup.cases[0].outcome, 'stock');
         assert.equal(backup.cases[0].mainEmail.data.split(',')[1], email.buffer.toString('base64'));
+        assert.match(backup.cases[0].mainEmail.originalText, /Amostra retornada pelo correio/);
         assert.equal(backup.cases[0].responseEmail.data.split(',')[1], reply.buffer.toString('base64'));
         await page.locator('#activeTab').click();
         assert.equal(await page.locator('#caseRows tr').count(), 0);
@@ -205,7 +258,7 @@ async function run() {
         }));
         await mobile.screenshot({ path: '/tmp/devolucoes-detail-mobile.png', fullPage: true });
         assert.deepEqual(errors, []);
-        console.log('PASS: rota, e-mail obrigatório, vendedores, original intacto para encaminhamento, cópia de destinatários/texto, bloqueios, reenvio, estoque, conclusão, reativação, persistência, anexos, backup/restauração, Excel vazio/completo com histórico e texto seguro, validação, busca e layout desktop/mobile.');
+        console.log('PASS: cabeçalho sem link, histórico de MSG/EML/HTML, mensagem longa sem truncamento silencioso, cópia e fallback, backups antigos, nova mensagem no Outlook, controle de casos, persistência, backup JSON, Excel e layout desktop/mobile.');
     } finally { await browser.close(); }
 }
 run().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => server.close());
