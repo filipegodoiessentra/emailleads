@@ -28,15 +28,17 @@ function formatDate(value) { return new Date(value).toLocaleString('pt-BR', { da
 function bodyFor(seller) {
     return `Boa Tarde ${seller.firstName},\r\n\r\nRecebemos o retorno via correio dessa amostra. \r\nFavor informar imediatamente se vai ser reenviado ou deve voltar para o estoque.\r\nCaso reenviado, favor confirmar o endereço e os dados do destinatário/recebedor responsável. \r\n\r\nAguardamos seu retorno.`;
 }
-function subjectFor(record) { return `Devolução de amostra - ${record.reference} [${record.code}]`; }
-function openOutlook(record) {
-    const seller = sellers.find(item => item.id === record.sellerId);
-    const link = document.createElement('a');
-    link.href = `mailto:${seller.email}?cc=${encodeURIComponent(copies.join(';'))}&subject=${encodeURIComponent(subjectFor(record))}&body=${encodeURIComponent(bodyFor(seller))}`;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+async function downloadEmail(email) {
+    const response = await fetch(email.data);
+    download(await response.blob(), email.name);
+}
+async function prepareForward(record) {
+    try {
+        await downloadEmail(record.mainEmail);
+        notify('Original baixado. Abra o arquivo no Outlook, use Encaminhar e confirme o envio no caso.');
+    } catch {
+        byId('detailError').textContent = 'Caso salvo, mas não foi possível baixar o original. Tente novamente pelo botão de download.';
+    }
 }
 function openDatabase() {
     return new Promise((resolve, reject) => {
@@ -95,7 +97,6 @@ function updatePreview() {
     const seller = sellers.find(item => item.id === byId('seller').value);
     byId('createBtn').disabled = !mainEmail || !seller || !byId('reference').value.trim() || busy;
     byId('recipients').textContent = seller ? `Para: ${seller.email}\nCc: ${copies.join('; ')}` : '';
-    byId('subjectPreview').textContent = seller ? `Assunto: Devolução de amostra - ${byId('reference').value.trim()}` : '';
     byId('bodyPreview').textContent = seller ? bodyFor(seller) : 'Selecione o vendedor.';
 }
 async function readEmail(file) {
@@ -154,6 +155,9 @@ function showDetail(id) {
     byId('detailCode').textContent = record.code;
     byId('detailTitle').textContent = record.reference;
     byId('detailSeller').textContent = `${seller.id} · ${seller.name} · ${seller.email}`;
+    byId('forwardTo').textContent = `Para: ${seller.email}`;
+    byId('forwardCc').textContent = `Cc: ${copies.join('; ')}`;
+    byId('forwardBody').textContent = bodyFor(seller);
     byId('steps').innerHTML = stages.slice(1).map((label, index) => `<li class="${record.stage > index + 1 ? 'done' : record.stage === index + 1 ? 'current' : ''}">${index + 1}. ${index === 2 ? 'Reenviado / Estoque' : label}</li>`).join('');
     const emails = [['principal', 'E-mail principal', record.mainEmail], ['resposta', 'Resposta do vendedor', record.responseEmail]].filter(item => item[2]);
     byId('attachments').innerHTML = emails.map(([kind, label, email]) => `<div class="attachment"><span>${escapeHtml(label)}<small>${escapeHtml(email.name)} · ${(email.size / 1024).toFixed(1)} KB</small></span><button data-download="${kind}" title="Baixar e-mail original" aria-label="Baixar ${escapeHtml(label)}"><i data-lucide="download" aria-hidden="true"></i></button></div>`).join('');
@@ -216,6 +220,52 @@ function download(blob, name) {
     document.body.appendChild(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+async function exportExcel(records) {
+    if (!window.ExcelJS) throw new Error('A biblioteca Excel não carregou. Recarregue a página e tente novamente.');
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Essentra - Devoluções';
+    workbook.created = new Date();
+    const sheet = workbook.addWorksheet('Devoluções');
+    const columns = [
+        ['ID', 38], ['Caso', 25], ['Amostra / referência', 40], ['Código do vendedor', 20],
+        ['Vendedor', 25], ['E-mail do vendedor', 40], ['Cópias', 75], ['Etapa', 10],
+        ['Status', 25], ['Destino', 25], ['Endereço', 50], ['Recebedor', 35], ['Observações', 50],
+        ['Criado em (UTC)', 23], ['Atualizado em (UTC)', 23], ['E-mail principal', 40],
+        ['Tamanho principal (bytes)', 25], ['Principal inserido em (UTC)', 27], ['E-mail de resposta', 40],
+        ['Tamanho resposta (bytes)', 25], ['Resposta inserida em (UTC)', 27], ['Eventos no histórico', 22]
+    ];
+    sheet.columns = columns.map(([header, width]) => ({ header, width }));
+    const historySheet = workbook.addWorksheet('Histórico');
+    historySheet.columns = [['ID do caso', 38], ['Caso', 25], ['Amostra / referência', 40], ['Data (UTC)', 23], ['Evento', 65]]
+        .map(([header, width]) => ({ header, width }));
+    records.forEach(record => {
+        const seller = sellers.find(item => item.id === record.sellerId);
+        const outcome = record.outcome === 'resent' ? 'Reenviado' : record.outcome === 'stock' ? 'Voltou para estoque' : '';
+        sheet.addRow([
+            record.id, record.code, record.reference, seller.id, seller.name, seller.email, copies.join('; '),
+            record.stage, stages[record.stage], outcome, record.address || '', record.recipient || '', record.notes || '',
+            new Date(record.createdAt), new Date(record.updatedAt), record.mainEmail.name, record.mainEmail.size,
+            new Date(record.mainEmail.addedAt), record.responseEmail?.name || '', record.responseEmail?.size ?? null,
+            record.responseEmail ? new Date(record.responseEmail.addedAt) : null, record.history.length
+        ]);
+        record.history.forEach(event => historySheet.addRow([record.id, record.code, record.reference, new Date(event.at), event.action]));
+    });
+    [14, 15, 18, 21].forEach(column => { sheet.getColumn(column).numFmt = 'dd/mm/yyyy hh:mm:ss'; });
+    historySheet.getColumn(4).numFmt = 'dd/mm/yyyy hh:mm:ss';
+    [sheet, historySheet].forEach(worksheet => {
+        worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+        worksheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(1, worksheet.rowCount), column: worksheet.columnCount } };
+        worksheet.getRow(1).height = 32;
+        worksheet.getRow(1).eachCell(cell => {
+            cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1763B6' } };
+            cell.alignment = { vertical: 'middle', wrapText: true };
+        });
+    });
+    const buffer = await workbook.xlsx.writeBuffer();
+    download(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+        `devolucoes-${workbook.created.toISOString().replace(/[:.]/g, '-')}.xlsx`);
+}
 
 byId('seller').append(...sellers.map(seller => new Option(`${seller.id} - ${seller.name}`, seller.id)));
 document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => { if (!busy) byId(button.dataset.close).close(); }));
@@ -251,8 +301,8 @@ byId('newForm').addEventListener('submit', async event => {
             outcome: null, address: '', recipient: '', notes: '', history: [{ action: 'Caso criado com e-mail principal; envio pendente', at }] };
         assertRecord(record);
         await writeCases([record]); await refresh();
-        byId('newDialog').close(); showDetail(record.id); openOutlook(record);
-        notify('Caso salvo. Confirme o envio depois de enviar o e-mail no Outlook.');
+        byId('newDialog').close(); showDetail(record.id);
+        await prepareForward(record);
     } catch (error) { byId('newError').textContent = error.message; }
     finally { busy = false; updatePreview(); }
 });
@@ -263,12 +313,21 @@ byId('attachments').addEventListener('click', async event => {
     try {
         const record = cases.find(item => item.id === selectedId);
         const email = button.dataset.download === 'principal' ? record.mainEmail : record.responseEmail;
-        const response = await fetch(email.data);
-        download(await response.blob(), email.name);
+        await downloadEmail(email);
     } catch { byId('detailError').textContent = 'Não foi possível baixar o e-mail.'; }
 });
-byId('outlookBtn').addEventListener('click', () => openOutlook(cases.find(item => item.id === selectedId)));
-byId('sentBtn').addEventListener('click', () => transition(0, 1, 'Envio do e-mail confirmado pelo usuário'));
+byId('forwardBtn').addEventListener('click', () => prepareForward(cases.find(item => item.id === selectedId)));
+document.querySelectorAll('[data-copy-forward]').forEach(button => button.addEventListener('click', async () => {
+    const record = cases.find(item => item.id === selectedId);
+    const seller = sellers.find(item => item.id === record.sellerId);
+    const values = { to: seller.email, cc: copies.join('; '), body: bodyFor(seller) };
+    try {
+        await navigator.clipboard.writeText(values[button.dataset.copyForward]);
+        byId('detailError').textContent = '';
+        notify('Copiado para a área de transferência.');
+    } catch { byId('detailError').textContent = 'O navegador bloqueou a cópia. Selecione e copie o texto exibido acima.'; }
+}));
+byId('sentBtn').addEventListener('click', () => transition(0, 1, 'Encaminhamento do e-mail confirmado pelo usuário'));
 byId('outcomeForm').addEventListener('change', () => {
     const resend = new FormData(byId('outcomeForm')).get('outcome') === 'resent';
     byId('resendFields').hidden = !resend;
@@ -296,6 +355,18 @@ byId('activeTab').addEventListener('click', () => setView(false));
 byId('completedTab').addEventListener('click', () => setView(true));
 byId('search').addEventListener('input', render);
 byId('statusFilter').addEventListener('change', render);
+byId('excelBtn').addEventListener('click', async () => {
+    if (!database || busy) return;
+    busy = true;
+    byId('excelBtn').disabled = true;
+    notify('Preparando planilha Excel...');
+    try {
+        const records = await loadCases();
+        await exportExcel(records.sort((first, second) => second.updatedAt.localeCompare(first.updatedAt)));
+        notify(`Excel gerado com ${records.length} caso(s), incluindo concluídos, e histórico completo.`);
+    } catch (error) { notify(`Excel não gerado: ${error.message}`, true); }
+    finally { busy = false; byId('excelBtn').disabled = false; }
+});
 byId('exportBtn').addEventListener('click', async () => {
     if (!database || busy) return;
     try {
@@ -331,6 +402,7 @@ async function initialize() {
     try {
         database = await openDatabase(); await refresh();
         byId('newBtn').disabled = false;
+        byId('excelBtn').disabled = false;
         notify('');
     } catch (error) { notify(error.message, true); byId('storageStatus').textContent = 'Armazenamento indisponível'; }
     icons();

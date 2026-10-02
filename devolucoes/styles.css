@@ -16,6 +16,7 @@ a:hover { text-decoration: underline; }
 :focus-visible { outline: 3px solid #7db8ef; outline-offset: 3px; }
 .topbar { min-height: 72px; background: white; border-bottom: 1px solid var(--line); padding: 16px max(24px, calc((100% - 1200px) / 2)); display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .brand { color: var(--ink); font-size: 25px; font-weight: 700; display: flex; align-items: center; gap: 24px; }
+.brand img { display: block; width: 140px; height: 44px; object-fit: cover; object-position: center 54%; flex-shrink: 0; }
 .brand span { font-size: 13px; font-weight: 500; border-left: 1px solid var(--line); padding-left: 24px; color: var(--muted); }
 main { max-width: 1248px; margin: auto; padding: 36px 24px; }
 .heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
@@ -24,6 +25,7 @@ h1 { font-size: 30px; margin: 0; font-weight: 600; }
 h2 { font-size: 21px; margin: 0; overflow-wrap: anywhere; }
 h3 { font-size: 14px; font-weight: 600; margin: 0 0 14px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.forward-actions { margin-top: 16px; }
 .notice { margin: 14px 0; color: var(--green); min-height: 20px; overflow-wrap: anywhere; }
 .notice.error, .error { color: #af3030; }
 .metrics { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 22px 0; gap: 20px; }

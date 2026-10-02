@@ -6,17 +6,19 @@
     <title>Devoluções de amostras | Essentra</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
+    <script src="exceljs.min.js" defer></script>
     <script src="app.js" defer></script>
 </head>
 <body>
     <header class="topbar">
-        <a class="brand" href="../">essentra<span>Amostras / Devoluções</span></a>
+        <a class="brand" href="../"><img src="essentra-logo.png" alt="Essentra Components" width="198" height="162"><span>Amostras / Devoluções</span></a>
         <a href="../enviodeemails.html">Notificar vendedor <span aria-hidden="true">↗</span></a>
     </header>
     <main>
         <div class="heading">
             <div><p class="eyebrow">CONTROLE DE AMOSTRAS</p><h1>Devoluções</h1></div>
             <div class="actions">
+                <button id="excelBtn" title="Baixar todos os casos e histórico em Excel (.xlsx)" disabled><i data-lucide="file-spreadsheet" aria-hidden="true"></i> Excel</button>
                 <button id="exportBtn" title="Baixar backup JSON"><i data-lucide="download" aria-hidden="true"></i> Backup JSON</button>
                 <button id="importBtn" title="Restaurar backup JSON"><i data-lucide="upload" aria-hidden="true"></i> Restaurar</button>
                 <button id="newBtn" class="primary" disabled><i data-lucide="plus" aria-hidden="true"></i> Nova devolução</button>
@@ -66,10 +68,10 @@
                 <input id="reference" maxlength="180" required placeholder="Ex.: Amostra L26-0389583">
                 <label for="seller">2. Vendedor</label>
                 <select id="seller" required><option value="">Selecione o vendedor</option></select>
-                <div class="preview"><h3>E-mail de notificação</h3><p id="recipients"></p><p id="subjectPreview"></p><pre id="bodyPreview">Selecione o vendedor.</pre></div>
+                <div class="preview"><h3>Texto para encaminhamento</h3><p id="recipients"></p><pre id="bodyPreview">Selecione o vendedor.</pre></div>
             </fieldset>
             <p id="newError" class="error" role="alert"></p>
-            <div class="dialog-actions"><button type="button" data-close="newDialog">Cancelar</button><button id="createBtn" type="submit" class="primary" disabled><i data-lucide="save" aria-hidden="true"></i> Salvar e abrir no Outlook</button></div>
+            <div class="dialog-actions"><button type="button" data-close="newDialog">Cancelar</button><button id="createBtn" type="submit" class="primary" disabled><i data-lucide="save" aria-hidden="true"></i> Salvar e baixar original</button></div>
         </form>
     </dialog>
 
@@ -78,7 +80,17 @@
         <p id="detailSeller"></p>
         <ol id="steps" class="steps"></ol>
         <section><h3>E-mails do caso</h3><div id="attachments" class="attachments"></div></section>
-        <section id="pendingSection" hidden><h3>Envio pendente</h3><div class="actions"><button id="outlookBtn"><i data-lucide="send" aria-hidden="true"></i> Abrir no Outlook</button><button id="sentBtn" class="primary">Confirmar e-mail enviado</button></div></section>
+        <section id="pendingSection" hidden>
+            <h3>Encaminhamento pendente</h3>
+            <div class="preview"><p id="forwardTo"></p><p id="forwardCc"></p><pre id="forwardBody"></pre></div>
+            <div class="actions forward-actions">
+                <button id="forwardBtn"><i data-lucide="download" aria-hidden="true"></i> Baixar original para encaminhar</button>
+                <button data-copy-forward="to"><i data-lucide="copy" aria-hidden="true"></i> Copiar destinatário</button>
+                <button data-copy-forward="cc"><i data-lucide="copy" aria-hidden="true"></i> Copiar cópias</button>
+                <button data-copy-forward="body"><i data-lucide="copy" aria-hidden="true"></i> Copiar texto</button>
+                <button id="sentBtn" class="primary">Confirmar encaminhamento enviado</button>
+            </div>
+        </section>
         <section id="responseSection" hidden>
             <h3>2. Resposta recebida</h3>
             <label id="responseDrop" class="drop-zone compact" tabindex="0" for="responseFile"><i data-lucide="mail" aria-hidden="true"></i><strong>Inserir e-mail de resposta</strong><span>Arraste do Outlook ou selecione .msg / .eml</span></label>

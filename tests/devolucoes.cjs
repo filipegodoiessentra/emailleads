@@ -3,6 +3,7 @@ const http = require('node:http');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { chromium } = require('playwright');
+const ExcelJS = require('exceljs');
 
 const root = path.resolve(__dirname, '..');
 const server = http.createServer(async (request, response) => {
@@ -14,7 +15,7 @@ const server = http.createServer(async (request, response) => {
         if (pathname.endsWith('/')) pathname += 'index.html';
         const filename = path.resolve(root, `.${pathname}`);
         if (!filename.startsWith(`${root}/`)) { response.writeHead(403); response.end(); return; }
-        const type = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' }[path.extname(filename)];
+        const type = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png' }[path.extname(filename)];
         response.writeHead(200, { 'Content-Type': type || 'application/octet-stream' });
         response.end(await fs.readFile(filename));
     } catch { response.writeHead(404); response.end(); }
@@ -31,8 +32,25 @@ async function run() {
         await page.goto(url);
         await page.waitForFunction(() => !document.getElementById('newBtn').disabled);
         assert(page.url().endsWith('/devolucoes/'));
+        async function readExcel(current) {
+            const downloading = current.waitForEvent('download');
+            await current.locator('#excelBtn').click();
+            const exported = await downloading;
+            assert(exported.suggestedFilename().endsWith('.xlsx'));
+            const buffer = await fs.readFile(await exported.path());
+            assert.equal(buffer.subarray(0, 4).toString('hex'), '504b0304');
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(buffer);
+            return workbook;
+        }
+        const emptyWorkbook = await readExcel(page);
+        assert.deepEqual(emptyWorkbook.worksheets.map(sheet => sheet.name), ['Devoluções', 'Histórico']);
+        assert.equal(emptyWorkbook.getWorksheet('Devoluções').rowCount, 1);
+        assert.equal(emptyWorkbook.getWorksheet('Histórico').rowCount, 1);
         await page.evaluate(() => {
             window.sentLinks = [];
+            window.copiedTexts = [];
+            Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async value => window.copiedTexts.push(value) } });
             const original = HTMLAnchorElement.prototype.click;
             HTMLAnchorElement.prototype.click = function () {
                 if (this.href.startsWith('mailto:')) { window.sentLinks.push(this.href); return; }
@@ -52,13 +70,20 @@ async function run() {
         assert.deepEqual(await page.locator('#seller option').allTextContents(), ['Selecione o vendedor', '338 - Matheus Silva', '340 - Pablo Silva', '346 - Cristiana Roseto']);
         await page.locator('#seller').selectOption('346');
         await page.locator('#reference').fill('Amostra <script>segura</script>');
+        const forwardDownload = page.waitForEvent('download');
         await page.locator('#createBtn').click();
         await page.locator('#detailDialog').waitFor({ state: 'visible' });
-        await page.waitForFunction(() => window.sentLinks.length === 1);
-        const mailto = new URL(await page.evaluate(() => window.sentLinks[0]));
-        assert.equal(mailto.pathname, 'CristianaRoseto@essentra.com');
-        assert.equal(mailto.searchParams.get('cc'), 'BrazilWhse@essentra.com;EmersonSantos@essentra.com;BrazilSamples@essentra.com');
-        assert.equal(mailto.searchParams.get('body'), 'Boa Tarde Cristiana,\r\n\r\nRecebemos o retorno via correio dessa amostra. \r\nFavor informar imediatamente se vai ser reenviado ou deve voltar para o estoque.\r\nCaso reenviado, favor confirmar o endereço e os dados do destinatário/recebedor responsável. \r\n\r\nAguardamos seu retorno.');
+        const forwardOriginal = await forwardDownload;
+        assert.equal(forwardOriginal.suggestedFilename(), email.name);
+        assert.deepEqual(await fs.readFile(await forwardOriginal.path()), email.buffer);
+        assert.deepEqual(await page.evaluate(() => window.sentLinks), []);
+        await page.locator('[data-copy-forward="to"]').click();
+        await page.locator('[data-copy-forward="cc"]').click();
+        await page.locator('[data-copy-forward="body"]').click();
+        const copied = await page.evaluate(() => window.copiedTexts);
+        assert.equal(copied[0], 'CristianaRoseto@essentra.com');
+        assert.equal(copied[1], 'BrazilWhse@essentra.com; EmersonSantos@essentra.com; BrazilSamples@essentra.com');
+        assert.equal(copied[2], 'Boa Tarde Cristiana,\r\n\r\nRecebemos o retorno via correio dessa amostra. \r\nFavor informar imediatamente se vai ser reenviado ou deve voltar para o estoque.\r\nCaso reenviado, favor confirmar o endereço e os dados do destinatário/recebedor responsável. \r\n\r\nAguardamos seu retorno.');
         assert(await page.locator('#responseSection').isHidden());
         await page.locator('#sentBtn').click();
         await page.locator('#responseSection').waitFor({ state: 'visible' });
@@ -98,6 +123,7 @@ async function run() {
         await page.locator('#reactivateBtn').click();
         await page.locator('#outcomeSection').waitFor({ state: 'visible' });
         await page.locator('input[value="stock"]').check();
+        await page.locator('#outcomeNotes').fill('=1+1');
         await page.locator('#outcomeForm button').click();
         await page.locator('#completeBtn').waitFor({ state: 'visible' });
         await page.locator('#completeBtn').click();
@@ -112,6 +138,31 @@ async function run() {
         assert.equal(backup.cases[0].outcome, 'stock');
         assert.equal(backup.cases[0].mainEmail.data.split(',')[1], email.buffer.toString('base64'));
         assert.equal(backup.cases[0].responseEmail.data.split(',')[1], reply.buffer.toString('base64'));
+        await page.locator('#activeTab').click();
+        assert.equal(await page.locator('#caseRows tr').count(), 0);
+        const workbook = await readExcel(page);
+        const dataSheet = workbook.getWorksheet('Devoluções');
+        const historySheet = workbook.getWorksheet('Histórico');
+        assert.equal(dataSheet.rowCount, 2);
+        assert.equal(dataSheet.getCell('A2').value, backup.cases[0].id);
+        assert.equal(dataSheet.getCell('C2').value, 'Amostra <script>segura</script>');
+        assert.equal(dataSheet.getCell('D2').value, '346');
+        assert.equal(dataSheet.getCell('E2').value, 'Cristiana Roseto');
+        assert.equal(dataSheet.getCell('F2').value, 'CristianaRoseto@essentra.com');
+        assert.equal(dataSheet.getCell('G2').value, 'BrazilWhse@essentra.com; EmersonSantos@essentra.com; BrazilSamples@essentra.com');
+        assert.equal(dataSheet.getCell('H2').value, 4);
+        assert.equal(dataSheet.getCell('I2').value, 'Concluído');
+        assert.equal(dataSheet.getCell('J2').value, 'Voltou para estoque');
+        assert.equal(dataSheet.getCell('M2').value, '=1+1');
+        assert.equal(dataSheet.getCell('M2').type, ExcelJS.ValueType.String);
+        assert.equal(dataSheet.getCell('N2').value.toISOString(), backup.cases[0].createdAt);
+        assert.equal(dataSheet.getCell('P2').value, email.name);
+        assert.equal(dataSheet.getCell('S2').value, reply.name);
+        assert.equal(historySheet.rowCount, backup.cases[0].history.length + 1);
+        assert.equal(historySheet.getCell('E2').value, backup.cases[0].history[0].action);
+        assert.equal(dataSheet.views[0].ySplit, 1);
+        assert(dataSheet.autoFilter);
+        await page.locator('#completedTab').click();
         const secondContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
         const mobile = await secondContext.newPage();
         await mobile.goto(url);
@@ -131,7 +182,13 @@ async function run() {
         assert.equal(await mobile.locator('#caseRows tr').count(), 0);
         await mobile.locator('#search').fill('Cristiana');
         assert.equal(await mobile.locator('#caseRows tr').count(), 1);
+        const mobileWorkbook = await readExcel(mobile);
+        assert.equal(mobileWorkbook.getWorksheet('Devoluções').rowCount, 2);
         for (const current of [page, mobile]) {
+            await current.waitForFunction(() => {
+                const logo = document.querySelector('.brand img');
+                return logo && logo.complete && logo.naturalWidth > 0;
+            });
             assert(await current.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
         }
         assert(await mobile.locator('.badge').evaluate(element => {
@@ -148,7 +205,7 @@ async function run() {
         }));
         await mobile.screenshot({ path: '/tmp/devolucoes-detail-mobile.png', fullPage: true });
         assert.deepEqual(errors, []);
-        console.log('PASS: rota, e-mail obrigatório, vendedores, mailto, bloqueios, reenvio, estoque, conclusão, reativação, persistência, anexos, backup/restauração, validação, busca e layout desktop/mobile.');
+        console.log('PASS: rota, e-mail obrigatório, vendedores, original intacto para encaminhamento, cópia de destinatários/texto, bloqueios, reenvio, estoque, conclusão, reativação, persistência, anexos, backup/restauração, Excel vazio/completo com histórico e texto seguro, validação, busca e layout desktop/mobile.');
     } finally { await browser.close(); }
 }
 run().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => server.close());
