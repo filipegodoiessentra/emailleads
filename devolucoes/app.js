@@ -200,7 +200,19 @@ function showDetail(id) {
     byId('detailSeller').textContent = `${seller.id} · ${seller.name} · ${seller.email}`;
     byId('steps').innerHTML = stages.slice(1).map((label, index) => `<li class="${record.stage > index + 1 ? 'done' : record.stage === index + 1 ? 'current' : ''}">${index + 1}. ${index === 2 ? 'Reenviado / Estoque' : label}</li>`).join('');
     const emails = [['principal', 'E-mail principal', record.mainEmail], ['resposta', 'Resposta do vendedor', record.responseEmail]].filter(item => item[2]);
-    byId('attachments').innerHTML = emails.map(([kind, label, email]) => `<div class="attachment"><span>${escapeHtml(label)}<small>${escapeHtml(email.name)} · ${(email.size / 1024).toFixed(1)} KB</small></span><button data-download="${kind}" title="Baixar e-mail original" aria-label="Baixar ${escapeHtml(label)}"><i data-lucide="download" aria-hidden="true"></i></button></div>`).join('');
+    byId('attachments').innerHTML = emails.map(([kind, label, email]) => `<div class="email-item"><div class="attachment"><span>${escapeHtml(label)}<small>${escapeHtml(email.name)} · ${(email.size / 1024).toFixed(1)} KB</small></span><button data-download="${kind}" title="Baixar e-mail original" aria-label="Baixar ${escapeHtml(label)}"><i data-lucide="download" aria-hidden="true"></i></button></div><details class="email-content" open><summary>Conteúdo do e-mail</summary><pre data-email-content="${kind}" aria-live="polite">Carregando e-mail...</pre></details></div>`).join('');
+    emails.forEach(([kind, label, email]) => {
+        const content = byId('attachments').querySelector(`[data-email-content="${kind}"]`);
+        originalFor(email).then(original => {
+            if (!content.isConnected) return;
+            content.textContent = original.originalText || `Conteúdo não disponível: ${original.extractionError || 'Não foi possível ler este e-mail.'} Baixe o original para abrir no Outlook.`;
+            content.classList.toggle('error', !original.originalText);
+        }).catch(() => {
+            if (!content.isConnected) return;
+            content.textContent = 'Não foi possível exibir o e-mail. Baixe o original para abrir no Outlook.';
+            content.classList.add('error');
+        });
+    });
     byId('pendingSection').hidden = record.stage !== 0;
     byId('outlookWarning').textContent = '';
     byId('copyEmailFeedback').textContent = '';

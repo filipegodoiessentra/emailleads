@@ -33,6 +33,7 @@ async function run() {
         await page.waitForFunction(() => !document.getElementById('newBtn').disabled);
         assert(page.url().endsWith('/devolucoes/'));
         assert.equal(await page.locator('.topbar a[href="../enviodeemails.html"]').count(), 0);
+        assert.equal(await page.locator('.brand span').count(), 0);
         async function readExcel(current) {
             const downloading = current.waitForEvent('download');
             await current.locator('#excelBtn').click();
@@ -76,6 +77,8 @@ async function run() {
         await page.locator('#createBtn').click();
         await page.locator('#detailDialog').waitFor({ state: 'visible' });
         await page.waitForFunction(() => window.sentLinks.length === 1);
+        await page.locator('[data-email-content="principal"]').filter({ hasText: 'Amostra retornada pelo correio.' }).waitFor();
+        assert.match(await page.locator('[data-email-content="principal"]').textContent(), /De: cliente@example.com/);
         const mailto = new URL(await page.evaluate(() => window.sentLinks[0]));
         assert.equal(mailto.pathname, 'CristianaRoseto@essentra.com');
         assert.equal(mailto.searchParams.get('cc'), 'BrazilWhse@essentra.com;EmersonSantos@essentra.com;BrazilSamples@essentra.com');
@@ -148,6 +151,8 @@ async function run() {
         assert.equal(blocked.stage, 1); assert.match(blocked.error, /Caso inválido/);
         await page.locator('#responseFile').setInputFiles(reply);
         await page.locator('#outcomeSection').waitFor({ state: 'visible' });
+        await page.locator('[data-email-content="resposta"]').filter({ hasText: 'Reenviar para o cliente.' }).waitFor();
+        assert.match(await page.locator('[data-email-content="resposta"]').textContent(), /De: CristianaRoseto@essentra.com/);
         await page.locator('input[value="resent"]').check();
         await page.locator('#outcomeForm button').click();
         assert(await page.locator('#completeBtn').isHidden());
@@ -167,6 +172,8 @@ async function run() {
         await page.locator('#completedTab').click();
         await page.locator('.case-link').click();
         assert.equal(await page.locator('.attachment').count(), 2);
+        await page.locator('[data-email-content="principal"]').filter({ hasText: 'Amostra retornada pelo correio.' }).waitFor();
+        await page.locator('[data-email-content="resposta"]').filter({ hasText: 'Reenviar para o cliente.' }).waitFor();
         assert.match(await page.locator('#outcomeText').textContent(), /Maria - Recepção/);
         const attachmentDownload = page.waitForEvent('download');
         await page.locator('[data-download="principal"]').click();
@@ -252,13 +259,30 @@ async function run() {
         await page.screenshot({ path: '/tmp/devolucoes-desktop.png', fullPage: true });
         await mobile.locator('.case-link').click();
         assert.equal(await mobile.locator('.attachment').count(), 2);
+        await mobile.locator('[data-email-content="principal"]').filter({ hasText: 'Amostra retornada pelo correio.' }).waitFor();
+        await mobile.locator('[data-email-content="resposta"]').filter({ hasText: 'Reenviar para o cliente.' }).waitFor();
         assert(await mobile.evaluate(() => {
             const dialog = document.getElementById('detailDialog');
             return dialog.scrollWidth <= dialog.clientWidth && dialog.getBoundingClientRect().right <= innerWidth;
         }));
         await mobile.screenshot({ path: '/tmp/devolucoes-detail-mobile.png', fullPage: true });
+        page.once('dialog', dialog => dialog.accept());
+        await page.evaluate(() => {
+            if (confirm('Apagar todos os casos e e-mails salvos neste navegador?')) {
+                const transaction = database.transaction('cases', 'readwrite');
+                transaction.objectStore('cases').clear();
+                transaction.oncomplete = () => location.reload();
+                transaction.onabort = () => console.error('Falha ao limpar:', transaction.error);
+            }
+        });
+        await page.waitForFunction(() => !document.getElementById('newBtn').disabled && cases.length === 0);
+        assert.equal(await page.locator('#completedCount').textContent(), '0');
+        assert.equal(await page.locator('#caseRows tr').count(), 0);
+        await page.reload();
+        await page.waitForFunction(() => !document.getElementById('newBtn').disabled);
+        assert.equal(await page.evaluate(() => cases.length), 0);
         assert.deepEqual(errors, []);
-        console.log('PASS: cabeçalho sem link, histórico de MSG/EML/HTML, mensagem longa sem truncamento silencioso, cópia e fallback, backups antigos, nova mensagem no Outlook, controle de casos, persistência, backup JSON, Excel e layout desktop/mobile.');
+        console.log('PASS: cabeçalho somente com logo, histórico de MSG/EML/HTML, mensagem longa sem truncamento silencioso, cópia e fallback, backups antigos, nova mensagem no Outlook, controle de casos, persistência, backup JSON, Excel, layout desktop/mobile e limpeza pelo console.');
     } finally { await browser.close(); }
 }
 run().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => server.close());

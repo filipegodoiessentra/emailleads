@@ -49,6 +49,12 @@ ser baixados no formato original. Caso sua versão do Outlook não
 disponibilize um arquivo ao arrastar, salve a mensagem como `.msg` ou `.eml` e
 selecione o arquivo. O limite é de 20 MB por e-mail.
 
+Ao abrir um caso, a seção **E-mails do caso** exibe o conteúdo textual do e-mail
+principal e da resposta do vendedor, incluindo os cabeçalhos extraídos. A leitura
+continua disponível nos casos concluídos e restaurados de backup. O conteúdo pode
+ser recolhido, e o download do original permanece disponível. Se o arquivo não
+puder ser lido, a seção informa a limitação e oferece o original para abrir no Outlook.
+
 ## Armazenamento e backup
 
 Casos, histórico e e-mails originais são salvos automaticamente no **IndexedDB**
