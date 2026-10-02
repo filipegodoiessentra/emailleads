@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Devoluções de amostras | Essentra</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <header class="topbar">
+        <a class="brand" href="../">essentra<span>Amostras / Devoluções</span></a>
+        <a href="../enviodeemails.html">Notificar vendedor <span aria-hidden="true">↗</span></a>
+    </header>
+    <main>
+        <div class="heading">
+            <div><p class="eyebrow">CONTROLE DE AMOSTRAS</p><h1>Devoluções</h1></div>
+            <div class="actions">
+                <button id="exportBtn" title="Baixar backup JSON"><i data-lucide="download" aria-hidden="true"></i> Backup JSON</button>
+                <button id="importBtn" title="Restaurar backup JSON"><i data-lucide="upload" aria-hidden="true"></i> Restaurar</button>
+                <button id="newBtn" class="primary" disabled><i data-lucide="plus" aria-hidden="true"></i> Nova devolução</button>
+                <input id="importFile" type="file" accept=".json,application/json" hidden>
+            </div>
+        </div>
+        <p id="notice" class="notice" role="status" aria-live="polite"></p>
+        <div id="metrics" class="metrics"></div>
+        <div class="toolbar">
+            <div class="tabs" role="group" aria-label="Seção de casos">
+                <button id="activeTab" class="selected" aria-pressed="true">Em andamento <span id="activeCount">0</span></button>
+                <button id="completedTab" aria-pressed="false">Concluídos <span id="completedCount">0</span></button>
+            </div>
+            <div class="filters">
+                <input id="search" type="search" placeholder="Buscar caso ou vendedor" aria-label="Buscar caso ou vendedor">
+                <select id="statusFilter" aria-label="Filtrar por status">
+                    <option value="">Todos os status</option>
+                    <option value="0">Envio pendente</option>
+                    <option value="1">1 · E-mail enviado</option>
+                    <option value="2">2 · Resposta recebida</option>
+                    <option value="3">3 · Destino registrado</option>
+                    <option value="4">4 · Concluído</option>
+                </select>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Caso / Amostra</th><th>Vendedor</th><th>Status</th><th>Atualizado</th><th></th></tr></thead>
+                <tbody id="caseRows"></tbody>
+            </table>
+            <div id="empty" class="empty" hidden><i data-lucide="inbox" aria-hidden="true"></i><h2>Nenhuma devolução</h2><p id="emptyText">Nenhum caso nesta seção.</p></div>
+        </div>
+        <footer><span id="storageStatus">Carregando registros...</span><span id="backupStatus">Backup JSON: não realizado nesta sessão</span></footer>
+    </main>
+
+    <dialog id="newDialog" aria-labelledby="newTitle">
+        <div class="dialog-heading"><h2 id="newTitle">Nova devolução</h2><button type="button" class="icon" data-close="newDialog" title="Fechar" aria-label="Fechar"><i data-lucide="x" aria-hidden="true"></i></button></div>
+        <form id="newForm">
+            <label class="label">1. E-mail principal <span class="required">Obrigatório</span></label>
+            <label id="mainDrop" class="drop-zone" tabindex="0" for="mainFile">
+                <i data-lucide="mail-plus" aria-hidden="true"></i><strong>Arraste o e-mail do Outlook</strong><span>ou selecione um arquivo .msg ou .eml</span>
+            </label>
+            <input id="mainFile" type="file" accept=".msg,.eml" hidden>
+            <p id="mainFileName" class="file-name" aria-live="polite"></p>
+            <fieldset id="caseFields" disabled>
+                <label for="reference">Identificação da amostra / assunto</label>
+                <input id="reference" maxlength="180" required placeholder="Ex.: Amostra L26-0389583">
+                <label for="seller">2. Vendedor</label>
+                <select id="seller" required><option value="">Selecione o vendedor</option></select>
+                <div class="preview"><h3>E-mail de notificação</h3><p id="recipients"></p><p id="subjectPreview"></p><pre id="bodyPreview">Selecione o vendedor.</pre></div>
+            </fieldset>
+            <p id="newError" class="error" role="alert"></p>
+            <div class="dialog-actions"><button type="button" data-close="newDialog">Cancelar</button><button id="createBtn" type="submit" class="primary" disabled><i data-lucide="save" aria-hidden="true"></i> Salvar e abrir no Outlook</button></div>
+        </form>
+    </dialog>
+
+    <dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle">
+        <div class="dialog-heading"><div><p id="detailCode" class="eyebrow"></p><h2 id="detailTitle"></h2></div><button class="icon" data-close="detailDialog" title="Fechar" aria-label="Fechar"><i data-lucide="x" aria-hidden="true"></i></button></div>
+        <p id="detailSeller"></p>
+        <ol id="steps" class="steps"></ol>
+        <section><h3>E-mails do caso</h3><div id="attachments" class="attachments"></div></section>
+        <section id="pendingSection" hidden><h3>Envio pendente</h3><div class="actions"><button id="outlookBtn"><i data-lucide="send" aria-hidden="true"></i> Abrir no Outlook</button><button id="sentBtn" class="primary">Confirmar e-mail enviado</button></div></section>
+        <section id="responseSection" hidden>
+            <h3>2. Resposta recebida</h3>
+            <label id="responseDrop" class="drop-zone compact" tabindex="0" for="responseFile"><i data-lucide="mail" aria-hidden="true"></i><strong>Inserir e-mail de resposta</strong><span>Arraste do Outlook ou selecione .msg / .eml</span></label>
+            <input id="responseFile" type="file" accept=".msg,.eml" hidden>
+        </section>
+        <section id="outcomeSection" hidden>
+            <h3>3. Destino da amostra</h3>
+            <form id="outcomeForm">
+                <div class="choices"><label><input type="radio" name="outcome" value="resent" required> Reenviado</label><label><input type="radio" name="outcome" value="stock" required> Voltou para estoque</label></div>
+                <div id="resendFields" hidden><label for="address">Endereço confirmado</label><textarea id="address" rows="2" maxlength="2000"></textarea><label for="recipient">Destinatário / recebedor responsável</label><input id="recipient" maxlength="300"></div>
+                <label for="outcomeNotes">Observações / rastreio (opcional)</label><textarea id="outcomeNotes" rows="2" maxlength="2000"></textarea>
+                <button class="primary" type="submit">Registrar destino</button>
+            </form>
+        </section>
+        <section id="outcomeSummary" hidden><h3>Destino registrado</h3><p id="outcomeText" class="preserve"></p></section>
+        <div class="actions"><button id="completeBtn" class="primary" hidden><i data-lucide="check" aria-hidden="true"></i> Concluir caso</button><button id="reactivateBtn" hidden><i data-lucide="rotate-ccw" aria-hidden="true"></i> Reativar caso</button></div>
+        <section><h3>Histórico</h3><ul id="history" class="history"></ul></section>
+        <p id="detailError" class="error" role="alert"></p>
+    </dialog>
+</body>
+</html>
