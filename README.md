@@ -52,7 +52,10 @@ selecione o arquivo. O limite é de 20 MB por e-mail.
 Ao abrir um caso, a seção **E-mails do caso** exibe o conteúdo textual do e-mail
 principal e da resposta do vendedor, incluindo os cabeçalhos extraídos. A leitura
 continua disponível nos casos concluídos e restaurados de backup. O conteúdo pode
-ser recolhido, e o download do original permanece disponível. Se o arquivo não
+ser expandido ao clicar em **Conteúdo do e-mail** e começa recolhido por padrão.
+As linhas de cabeçalho em português e inglês (como De, From, Sent, Cc e Subject)
+aparecem em negrito, sem interpretar o HTML do e-mail.
+O download do original permanece disponível. Se o arquivo não
 puder ser lido, a seção informa a limitação e oferece o original para abrir no Outlook.
 
 ## Armazenamento e backup
