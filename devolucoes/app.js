@@ -4,7 +4,7 @@ const sellers = [
     { id: '337', name: 'Bruna Giovanini', firstName: 'Bruna', email: 'BrunaGiovanini@essentra.com' },
     { id: '338', name: 'Matheus Silva', firstName: 'Matheus', email: 'MatheusSilva@essentra.com' },
     { id: '340', name: 'Pablo Silva', firstName: 'Pablo', email: 'PabloSilva@essentra.com' },
-    { id: '346', name: 'Cristiana Roseto', firstName: 'Cristiana', email: 'CristianaRoseto@essentra.com' }
+    { id: '346', name: 'Cristiana Roseto', firstName: 'Cristiana', email: 'CristianaRoseto@essentra.com' },
 ];
 const copies = ['BrazilWhse@essentra.com', 'EmersonSantos@essentra.com', 'BrazilSamples@essentra.com'];
 const stages = ['Envio pendente', 'E-mail enviado', 'Resposta recebida', 'Destino registrado', 'Concluído'];
