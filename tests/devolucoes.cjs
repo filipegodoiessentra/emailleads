@@ -212,6 +212,25 @@ async function run() {
         await page.locator('#completeBtn').waitFor({ state: 'visible' });
         await page.locator('#completeBtn').click();
         await page.locator('#reactivateBtn').waitFor({ state: 'visible' });
+        await page.locator('#editBtn').click();
+        await page.locator('#editStage').selectOption('2');
+        await page.locator('#removeResponseEmail').check();
+        await page.locator('#editReason').fill('Teste de validação');
+        await page.locator('#editForm button[type="submit"]').click();
+        await page.locator('#editError').filter({ hasText: 'Caso inválido' }).waitFor();
+        assert.equal(await page.evaluate(() => cases[0].stage), 4);
+        await page.locator('#editStage').selectOption('4');
+        await page.locator('#removeResponseEmail').uncheck();
+        await page.locator('#editResponseEmail').setInputFiles({
+            ...reply, name: 'Resposta corrigida.eml'
+        });
+        await page.locator('#editReference').fill('Amostra corrigida');
+        await page.locator('#editReason').fill('Corrigir identificação e substituir resposta');
+        await page.locator('#editForm button[type="submit"]').click();
+        await page.locator('#notice').filter({ hasText: 'Edição salva' }).waitFor();
+        assert.equal(await page.locator('#detailTitle').textContent(), 'Amostra corrigida');
+        assert.match(await page.locator('#history').textContent(), /Corrigir identificação e substituir resposta/);
+        assert.match(await page.locator('#history').textContent(), /Resposta corrigida\.eml/);
         await page.locator('[data-close="detailDialog"]').click();
         const exportDownload = page.waitForEvent('download');
         await page.locator('#exportBtn').click();
@@ -223,6 +242,10 @@ async function run() {
         assert.equal(backup.cases[0].mainEmail.data.split(',')[1], email.buffer.toString('base64'));
         assert.match(backup.cases[0].mainEmail.originalText, /Amostra retornada pelo correio/);
         assert.equal(backup.cases[0].responseEmail.data.split(',')[1], reply.buffer.toString('base64'));
+        assert.equal(backup.cases[0].responseEmail.name, 'Resposta corrigida.eml');
+        assert.equal(backup.cases[0].reference, 'Amostra corrigida');
+        assert.equal(backup.cases[0].history.at(-1).reason, 'Corrigir identificação e substituir resposta');
+        assert(backup.cases[0].history.at(-1).changes.some(change => change.field === 'Referência' && change.before === 'Amostra <script>segura</script>' && change.after === 'Amostra corrigida'));
         await page.locator('#activeTab').click();
         assert.equal(await page.locator('#caseRows tr').count(), 0);
         const workbook = await readExcel(page);
@@ -230,7 +253,7 @@ async function run() {
         const historySheet = workbook.getWorksheet('Histórico');
         assert.equal(dataSheet.rowCount, 2);
         assert.equal(dataSheet.getCell('A2').value, backup.cases[0].id);
-        assert.equal(dataSheet.getCell('C2').value, 'Amostra <script>segura</script>');
+        assert.equal(dataSheet.getCell('C2').value, 'Amostra corrigida');
         assert.equal(dataSheet.getCell('D2').value, '346');
         assert.equal(dataSheet.getCell('E2').value, 'Cristiana Roseto');
         assert.equal(dataSheet.getCell('F2').value, 'CristianaRoseto@essentra.com');
@@ -242,9 +265,11 @@ async function run() {
         assert.equal(dataSheet.getCell('M2').type, ExcelJS.ValueType.String);
         assert.equal(dataSheet.getCell('N2').value.toISOString(), backup.cases[0].createdAt);
         assert.equal(dataSheet.getCell('P2').value, email.name);
-        assert.equal(dataSheet.getCell('S2').value, reply.name);
+        assert.equal(dataSheet.getCell('S2').value, 'Resposta corrigida.eml');
         assert.equal(historySheet.rowCount, backup.cases[0].history.length + 1);
         assert.equal(historySheet.getCell('E2').value, backup.cases[0].history[0].action);
+        assert.equal(historySheet.getCell(`F${historySheet.rowCount}`).value, 'Corrigir identificação e substituir resposta');
+        assert.match(historySheet.getCell(`G${historySheet.rowCount}`).value, /Resposta corrigida\.eml/);
         assert.equal(dataSheet.views[0].ySplit, 1);
         assert(dataSheet.autoFilter);
         await page.locator('#completedTab').click();
@@ -299,6 +324,36 @@ async function run() {
             return dialog.scrollWidth <= dialog.clientWidth && dialog.getBoundingClientRect().right <= innerWidth;
         }));
         await mobile.screenshot({ path: '/tmp/devolucoes-detail-mobile.png', fullPage: true });
+        await page.locator('#completedTab').click();
+        await page.locator('.case-link').click();
+        await page.locator('#cancelBtn').click();
+        assert.match(await page.locator('#cancelDialog').textContent(), /definitivo/);
+        await page.locator('#cancelReason').fill('Caso aberto por engano');
+        await page.locator('#cancelForm button[type="submit"]').click();
+        await page.locator('#notice').filter({ hasText: 'Caso cancelado' }).waitFor();
+        assert.equal(await page.evaluate(() => cases[0].cancelled), true);
+        assert.equal(await page.evaluate(() => cases[0].mainEmail.data.split(',')[1]), email.buffer.toString('base64'));
+        await page.locator('[data-close="detailDialog"]').click();
+        await page.locator('#completedTab').click();
+        assert.equal(await page.locator('#caseRows tr').count(), 0);
+        assert.equal(await page.locator('#completedCount').textContent(), '0');
+        await page.locator('#cancelledTab').click();
+        assert.equal(await page.locator('#caseRows tr').count(), 1);
+        await page.locator('.case-link').click();
+        assert.match(await page.locator('#cancelledNotice').textContent(), /Caso aberto por engano/);
+        assert(await page.locator('#caseActions').isHidden());
+        assert.equal(await page.locator('.attachment').count(), 2);
+        assert.match(await page.locator('#history').textContent(), /Caso cancelado/);
+        await page.locator('[data-close="detailDialog"]').click();
+        page.once('dialog', dialog => dialog.accept());
+        await page.locator('#importFile').setInputFiles({ name: 'backup-anterior.json', mimeType: 'application/json', buffer: backupBuffer });
+        await page.locator('#notice').filter({ hasText: 'permaneceram cancelados' }).waitFor();
+        assert.equal(await page.evaluate(() => cases[0].cancelled), true);
+        assert.equal(await page.evaluate(() => cases[0].cancelReason), 'Caso aberto por engano');
+        const cancelledWorkbook = await readExcel(page);
+        assert.equal(cancelledWorkbook.getWorksheet('Devoluções').getCell('I2').value, 'Cancelado');
+        assert.equal(cancelledWorkbook.getWorksheet('Devoluções').getCell('W2').value, true);
+        assert.equal(cancelledWorkbook.getWorksheet('Devoluções').getCell('Y2').value, 'Caso aberto por engano');
         page.once('dialog', dialog => dialog.accept());
         await page.evaluate(() => {
             if (confirm('Apagar todos os casos e e-mails salvos neste navegador?')) {
@@ -315,7 +370,7 @@ async function run() {
         await page.waitForFunction(() => !document.getElementById('newBtn').disabled);
         assert.equal(await page.evaluate(() => cases.length), 0);
         assert.deepEqual(errors, []);
-        console.log('PASS: cabeçalho somente com logo, histórico de MSG/EML/HTML, mensagem longa sem truncamento silencioso, cópia e fallback, backups antigos, nova mensagem no Outlook, controle de casos, persistência, backup JSON, Excel, layout desktop/mobile e limpeza pelo console.');
+        console.log('PASS: cabeçalho somente com logo, histórico de MSG/EML/HTML, mensagem longa sem truncamento silencioso, cópia e fallback, backups antigos, nova mensagem no Outlook, controle de casos, edição auditada e cancelamento, persistência, backup JSON, Excel, layout desktop/mobile e limpeza pelo console.');
     } finally { await browser.close(); }
 }
 run().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => server.close());

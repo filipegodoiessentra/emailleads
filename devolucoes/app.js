@@ -16,7 +16,9 @@ let cases = [];
 let mainEmail = null;
 let selectedId = null;
 let completedView = false;
+let cancelledView = false;
 let busy = false;
+let editingRecord = null;
 
 function icons() { if (window.lucide) window.lucide.createIcons(); }
 function notify(message, error = false) {
@@ -110,26 +112,32 @@ async function refresh() {
     render();
 }
 function render() {
-    const counts = stages.map((label, stage) => cases.filter(record => record.stage === stage).length);
+    const activeCases = cases.filter(record => !record.cancelled);
+    const counts = stages.map((label, stage) => activeCases.filter(record => record.stage === stage).length);
     byId('metrics').innerHTML = [
         [counts[0] + counts[1], 'Aguardando resposta / envio'], [counts[2], 'Resposta recebida'],
-        [counts[3], 'Destino registrado'], [counts[4], 'Concluídos']
+        [counts[3], 'Destino registrado'], [counts[4], 'Concluídos'], [cases.length - activeCases.length, 'Cancelados']
     ].map(([count, label]) => `<div class="metric"><strong>${count}</strong><span>${label}</span></div>`).join('');
-    byId('activeCount').textContent = cases.length - counts[4];
+    byId('activeCount').textContent = counts.slice(0, 4).reduce((total, count) => total + count, 0);
     byId('completedCount').textContent = counts[4];
+    byId('cancelledCount').textContent = cases.length - activeCases.length;
     const query = byId('search').value.trim().toLocaleLowerCase('pt-BR');
     const filter = byId('statusFilter').value;
     const visible = cases.filter(record => {
         const seller = sellers.find(item => item.id === record.sellerId);
-        return (record.stage === 4) === completedView && (filter === '' || record.stage === Number(filter)) &&
+        const inView = cancelledView ? Boolean(record.cancelled) : !record.cancelled && (record.stage === 4) === completedView;
+        return inView && (filter === '' || (filter === 'cancelled' ? Boolean(record.cancelled) : record.stage === Number(filter))) &&
             `${record.reference} ${record.code} ${seller.name} ${seller.id} ${record.mainEmail.name}`.toLocaleLowerCase('pt-BR').includes(query);
     }).sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
     byId('caseRows').innerHTML = visible.map(record => {
         const seller = sellers.find(item => item.id === record.sellerId);
-        return `<tr><td><small>${escapeHtml(record.code)}</small><button class="case-link" data-case="${escapeHtml(record.id)}"><strong>${escapeHtml(record.reference)}</strong></button><small>${escapeHtml(record.mainEmail.name)}</small></td><td>${escapeHtml(seller.name)}<br><small>${seller.id}</small></td><td><span class="badge stage-${record.stage}">${record.stage ? `${record.stage} · ` : ''}${record.stage === 3 ? (record.outcome === 'resent' ? 'Reenviado' : 'Voltou para estoque') : stages[record.stage]}</span></td><td>${formatDate(record.updatedAt)}</td><td><button data-case="${escapeHtml(record.id)}" title="Abrir caso" aria-label="Abrir ${escapeHtml(record.code)}"><i data-lucide="arrow-up-right" aria-hidden="true"></i></button></td></tr>`;
+        const status = record.cancelled ? 'Cancelado' :
+            record.stage === 3 ? (record.outcome === 'resent' ? 'Reenviado' : 'Voltou para estoque') : `${record.stage ? `${record.stage} · ` : ''}${stages[record.stage]}`;
+        return `<tr><td><small>${escapeHtml(record.code)}</small><button class="case-link" data-case="${escapeHtml(record.id)}"><strong>${escapeHtml(record.reference)}</strong></button><small>${escapeHtml(record.mainEmail.name)}</small></td><td>${escapeHtml(seller.name)}<br><small>${seller.id}</small></td><td><span class="badge ${record.cancelled ? 'cancelled' : `stage-${record.stage}`}">${status}</span></td><td>${formatDate(record.updatedAt)}</td><td><button data-case="${escapeHtml(record.id)}" title="Abrir caso" aria-label="Abrir ${escapeHtml(record.code)}"><i data-lucide="arrow-up-right" aria-hidden="true"></i></button></td></tr>`;
     }).join('');
     byId('empty').hidden = visible.length > 0;
-    byId('emptyText').textContent = query || filter ? 'Nenhum caso corresponde aos filtros.' : (completedView ? 'Os casos concluídos ficarão aqui.' : 'Nenhum caso em andamento.');
+    byId('emptyText').textContent = query || filter ? 'Nenhum caso corresponde aos filtros.' :
+        cancelledView ? 'Os casos cancelados ficarão aqui.' : completedView ? 'Os casos concluídos ficarão aqui.' : 'Nenhum caso em andamento.';
     byId('storageStatus').textContent = `${cases.length} caso(s) salvo(s) neste navegador`;
     icons();
 }
@@ -226,13 +234,13 @@ function showDetail(id) {
             content.classList.add('error');
         });
     });
-    byId('pendingSection').hidden = record.stage !== 0;
+    byId('pendingSection').hidden = record.stage !== 0 || Boolean(record.cancelled);
     byId('outlookWarning').textContent = '';
     byId('copyEmailFeedback').textContent = '';
     byId('fullEmailBody').value = '';
     byId('copyEmailBtn').disabled = true;
     byId('messageDetails').open = false;
-    if (record.stage === 0) prepareMessage(record).then(message => {
+    if (record.stage === 0 && !record.cancelled) prepareMessage(record).then(message => {
         if (selectedId !== record.id) return;
         byId('fullEmailBody').value = message.body;
         byId('outlookWarning').textContent = message.warning;
@@ -240,16 +248,22 @@ function showDetail(id) {
     }).catch(() => {
         if (selectedId === record.id) byId('outlookWarning').textContent = 'Não foi possível preparar o histórico. Baixe e confira o e-mail original.';
     });
-    byId('responseSection').hidden = record.stage !== 1;
-    byId('outcomeSection').hidden = record.stage !== 2;
-    byId('outcomeSummary').hidden = record.stage < 3;
+    byId('responseSection').hidden = record.stage !== 1 || Boolean(record.cancelled);
+    byId('outcomeSection').hidden = record.stage !== 2 || Boolean(record.cancelled);
+    byId('outcomeSummary').hidden = record.stage < 3 || Boolean(record.cancelled);
+    byId('caseActions').hidden = Boolean(record.cancelled);
+    byId('editBtn').hidden = Boolean(record.cancelled);
+    byId('cancelBtn').hidden = Boolean(record.cancelled);
     byId('completeBtn').hidden = record.stage !== 3;
     byId('reactivateBtn').hidden = record.stage !== 4;
+    byId('cancelledNotice').hidden = !record.cancelled;
+    byId('cancelledNotice').textContent = record.cancelled ?
+        `Caso cancelado em ${formatDate(record.cancelledAt)}. Motivo: ${record.cancelReason}` : '';
     byId('outcomeText').textContent = record.outcome === 'resent' ? `Reenviado\nEndereço: ${record.address}\nRecebedor: ${record.recipient}\n${record.notes || ''}` : `Voltou para estoque\n${record.notes || ''}`;
     byId('outcomeForm').reset();
     byId('resendFields').hidden = true;
     byId('address').required = byId('recipient').required = false;
-    byId('history').innerHTML = record.history.map(event => `<li>${escapeHtml(event.action)}<time>${formatDate(event.at)}</time></li>`).join('');
+    byId('history').innerHTML = record.history.map(event => `<li>${escapeHtml(event.action)}${event.reason ? `<p class="preserve">Motivo: ${escapeHtml(event.reason)}</p>` : ''}${event.changes?.length ? `<ul>${event.changes.map(change => `<li>${escapeHtml(change.field)}: ${escapeHtml(change.before)} → ${escapeHtml(change.after)}</li>`).join('')}</ul>` : ''}<time>${formatDate(event.at)}</time></li>`).join('');
     byId('detailError').textContent = '';
     icons();
     if (!byId('detailDialog').open) byId('detailDialog').showModal();
@@ -271,8 +285,14 @@ function assertRecord(record) {
         (record.stage >= 3 && !['resent', 'stock'].includes(record.outcome)) ||
         (record.stage >= 3 && record.outcome === 'resent' && (typeof record.address !== 'string' || !record.address.trim() || typeof record.recipient !== 'string' || !record.recipient.trim())) ||
         !['address', 'recipient', 'notes'].every(key => record[key] == null || (typeof record[key] === 'string' && record[key].length <= 2000)) ||
+        (record.cancelled != null && typeof record.cancelled !== 'boolean') ||
+        (record.cancelled && (!validDate(record.cancelledAt) || typeof record.cancelReason !== 'string' || !record.cancelReason.trim() || record.cancelReason.length > 500)) ||
         !Array.isArray(record.history) || !record.history.length || record.history.length > 10000 ||
-        !record.history.every(event => event && typeof event.action === 'string' && event.action.length <= 500 && validDate(event.at))) {
+        !record.history.every(event => event && typeof event.action === 'string' && event.action.length <= 500 && validDate(event.at) &&
+            (event.reason == null || (typeof event.reason === 'string' && event.reason.length <= 500)) &&
+            (event.changes == null || (Array.isArray(event.changes) && event.changes.length <= 12 &&
+                event.changes.every(change => change && typeof change.field === 'string' && change.field.length <= 80 &&
+                    typeof change.before === 'string' && change.before.length <= 2000 && typeof change.after === 'string' && change.after.length <= 2000))))) {
         throw new Error('Caso inválido: confira os e-mails obrigatórios, vendedor, destino e histórico do backup.');
     }
 }
@@ -282,7 +302,7 @@ async function transition(expectedStage, nextStage, action, changes = {}) {
     try {
         const latest = await loadCases();
         const record = latest.find(item => item.id === selectedId);
-        if (!record || record.stage !== expectedStage) throw new Error('O caso foi alterado em outra aba. Feche e abra novamente antes de continuar.');
+        if (!record || record.cancelled || record.stage !== expectedStage) throw new Error('O caso foi alterado ou cancelado em outra aba. Feche e abra novamente antes de continuar.');
         const at = new Date().toISOString();
         const updated = { ...record, ...changes, stage: nextStage, updatedAt: at, history: [...record.history, { action, at }] };
         assertRecord(updated);
@@ -312,25 +332,30 @@ async function exportExcel(records) {
         ['Status', 25], ['Destino', 25], ['Endereço', 50], ['Recebedor', 35], ['Observações', 50],
         ['Criado em (UTC)', 23], ['Atualizado em (UTC)', 23], ['E-mail principal', 40],
         ['Tamanho principal (bytes)', 25], ['Principal inserido em (UTC)', 27], ['E-mail de resposta', 40],
-        ['Tamanho resposta (bytes)', 25], ['Resposta inserida em (UTC)', 27], ['Eventos no histórico', 22]
+        ['Tamanho resposta (bytes)', 25], ['Resposta inserida em (UTC)', 27], ['Eventos no histórico', 22],
+        ['Cancelado', 14], ['Cancelado em (UTC)', 23], ['Motivo do cancelamento', 50]
     ];
     sheet.columns = columns.map(([header, width]) => ({ header, width }));
     const historySheet = workbook.addWorksheet('Histórico');
-    historySheet.columns = [['ID do caso', 38], ['Caso', 25], ['Amostra / referência', 40], ['Data (UTC)', 23], ['Evento', 65]]
+    historySheet.columns = [['ID do caso', 38], ['Caso', 25], ['Amostra / referência', 40], ['Data (UTC)', 23], ['Evento', 65], ['Motivo', 50], ['Alterações', 100]]
         .map(([header, width]) => ({ header, width }));
     records.forEach(record => {
         const seller = sellers.find(item => item.id === record.sellerId);
         const outcome = record.outcome === 'resent' ? 'Reenviado' : record.outcome === 'stock' ? 'Voltou para estoque' : '';
         sheet.addRow([
             record.id, record.code, record.reference, seller.id, seller.name, seller.email, copies.join('; '),
-            record.stage, stages[record.stage], outcome, record.address || '', record.recipient || '', record.notes || '',
+            record.stage, record.cancelled ? 'Cancelado' : stages[record.stage], outcome, record.address || '', record.recipient || '', record.notes || '',
             new Date(record.createdAt), new Date(record.updatedAt), record.mainEmail.name, record.mainEmail.size,
             new Date(record.mainEmail.addedAt), record.responseEmail?.name || '', record.responseEmail?.size ?? null,
-            record.responseEmail ? new Date(record.responseEmail.addedAt) : null, record.history.length
+            record.responseEmail ? new Date(record.responseEmail.addedAt) : null, record.history.length,
+            Boolean(record.cancelled), record.cancelledAt ? new Date(record.cancelledAt) : null, record.cancelReason || ''
         ]);
-        record.history.forEach(event => historySheet.addRow([record.id, record.code, record.reference, new Date(event.at), event.action]));
+        record.history.forEach(event => historySheet.addRow([
+            record.id, record.code, record.reference, new Date(event.at), event.action, event.reason || '',
+            (event.changes || []).map(change => `${change.field}: ${change.before} → ${change.after}`).join('; ')
+        ]));
     });
-    [14, 15, 18, 21].forEach(column => { sheet.getColumn(column).numFmt = 'dd/mm/yyyy hh:mm:ss'; });
+    [14, 15, 18, 21, 24].forEach(column => { sheet.getColumn(column).numFmt = 'dd/mm/yyyy hh:mm:ss'; });
     historySheet.getColumn(4).numFmt = 'dd/mm/yyyy hh:mm:ss';
     [sheet, historySheet].forEach(worksheet => {
         worksheet.views = [{ state: 'frozen', ySplit: 1 }];
@@ -348,6 +373,7 @@ async function exportExcel(records) {
 }
 
 byId('seller').append(...sellers.map(seller => new Option(`${seller.id} - ${seller.name}`, seller.id)));
+byId('editSeller').append(...sellers.map(seller => new Option(`${seller.id} - ${seller.name}`, seller.id)));
 document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => { if (!busy) byId(button.dataset.close).close(); }));
 document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); }));
 byId('newBtn').addEventListener('click', () => {
@@ -388,6 +414,131 @@ byId('newForm').addEventListener('submit', async event => {
     finally { busy = false; updatePreview(); }
 });
 byId('caseRows').addEventListener('click', event => { const button = event.target.closest('[data-case]'); if (button) showDetail(button.dataset.case); });
+byId('editBtn').addEventListener('click', () => {
+    const record = cases.find(item => item.id === selectedId);
+    if (!record || record.cancelled || busy) return;
+    editingRecord = record;
+    byId('editForm').reset();
+    byId('editReference').value = record.reference;
+    byId('editSeller').value = record.sellerId;
+    byId('editStage').value = String(record.stage);
+    byId('editOutcome').value = record.outcome || '';
+    byId('editAddress').value = record.address || '';
+    byId('editRecipient').value = record.recipient || '';
+    byId('editNotes').value = record.notes || '';
+    byId('editMainEmailName').textContent = `Atual: ${record.mainEmail.name}`;
+    byId('editResponseEmailName').textContent = record.responseEmail ? `Atual: ${record.responseEmail.name}` : 'Nenhuma resposta anexada.';
+    byId('editError').textContent = '';
+    byId('editDialog').showModal();
+});
+byId('editForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (busy || !editingRecord) return;
+    busy = true;
+    try {
+        const latest = await loadCases();
+        const current = latest.find(item => item.id === editingRecord.id);
+        if (!current || current.cancelled || current.updatedAt !== editingRecord.updatedAt) {
+            throw new Error('O caso foi alterado ou cancelado em outra aba. Feche e abra novamente antes de editar.');
+        }
+        const reason = byId('editReason').value.trim();
+        if (!reason) throw new Error('Informe o motivo da edição.');
+        const mainFile = byId('editMainEmail').files[0];
+        const responseFile = byId('editResponseEmail').files[0];
+        if (responseFile && byId('removeResponseEmail').checked) {
+            throw new Error('Escolha substituir ou remover o e-mail de resposta, não as duas opções.');
+        }
+        const updated = {
+            ...current,
+            reference: byId('editReference').value.trim(),
+            sellerId: byId('editSeller').value,
+            stage: Number(byId('editStage').value),
+            outcome: byId('editOutcome').value || null,
+            address: byId('editAddress').value.trim(),
+            recipient: byId('editRecipient').value.trim(),
+            notes: byId('editNotes').value.trim()
+        };
+        if (mainFile) updated.mainEmail = await readEmail(mainFile, true);
+        if (responseFile) updated.responseEmail = await readEmail(responseFile, true);
+        else if (byId('removeResponseEmail').checked) updated.responseEmail = null;
+
+        const displayStage = value => `${value} · ${stages[value]}`;
+        const displayOutcome = value => value === 'resent' ? 'Reenviado' : value === 'stock' ? 'Voltou para estoque' : 'Não informado';
+        const fieldChanges = [
+            ['Referência', current.reference, updated.reference],
+            ['Vendedor', sellers.find(item => item.id === current.sellerId).name, sellers.find(item => item.id === updated.sellerId)?.name || updated.sellerId],
+            ['Etapa', displayStage(current.stage), displayStage(updated.stage)],
+            ['Destino', displayOutcome(current.outcome), displayOutcome(updated.outcome)],
+            ['Endereço', current.address || '', updated.address],
+            ['Recebedor', current.recipient || '', updated.recipient],
+            ['Observações', current.notes || '', updated.notes]
+        ].filter(([, before, after]) => before !== after)
+            .map(([field, before, after]) => ({ field, before: String(before), after: String(after) }));
+        const emailDescription = email => email ? `${email.name} (${email.size} bytes)` : 'Não informado';
+        if (current.mainEmail.data !== updated.mainEmail.data || current.mainEmail.name !== updated.mainEmail.name) {
+            fieldChanges.push({ field: 'E-mail principal', before: emailDescription(current.mainEmail), after: `${emailDescription(updated.mainEmail)} (substituído)` });
+        }
+        const responseChanged = current.responseEmail?.data !== updated.responseEmail?.data ||
+            current.responseEmail?.name !== updated.responseEmail?.name;
+        if (responseChanged) {
+            fieldChanges.push({
+                field: 'E-mail de resposta', before: emailDescription(current.responseEmail),
+                after: updated.responseEmail ? `${emailDescription(updated.responseEmail)} (substituído)` : 'Removido'
+            });
+        }
+        if (!fieldChanges.length) throw new Error('Nenhuma alteração foi feita.');
+        const at = new Date().toISOString();
+        updated.updatedAt = at;
+        updated.history = [...current.history, { action: 'Caso editado', at, reason, changes: fieldChanges }];
+        const latestBeforeWrite = await loadCases();
+        const latestRecord = latestBeforeWrite.find(item => item.id === current.id);
+        if (!latestRecord || latestRecord.cancelled || latestRecord.updatedAt !== current.updatedAt) {
+            throw new Error('O caso foi alterado ou cancelado em outra aba durante a edição. Feche e abra novamente.');
+        }
+        assertRecord(updated);
+        await writeCases([updated]);
+        editingRecord = null;
+        byId('editDialog').close();
+        await refresh();
+        showDetail(updated.id);
+        notify('Edição salva e registrada no histórico.');
+    } catch (error) { byId('editError').textContent = error.message; }
+    finally { busy = false; }
+});
+byId('cancelBtn').addEventListener('click', () => {
+    const record = cases.find(item => item.id === selectedId);
+    if (!record || record.cancelled || busy) return;
+    byId('cancelForm').reset();
+    byId('cancelError').textContent = '';
+    byId('cancelDialog').showModal();
+});
+byId('cancelForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (busy) return;
+    busy = true;
+    try {
+        const reason = byId('cancelReason').value.trim();
+        if (!reason) throw new Error('Informe o motivo do cancelamento.');
+        const latest = await loadCases();
+        const current = latest.find(item => item.id === selectedId);
+        const displayed = cases.find(item => item.id === selectedId);
+        if (!current || current.cancelled || !displayed || current.updatedAt !== displayed.updatedAt) {
+            throw new Error('O caso foi alterado ou cancelado em outra aba. Feche e abra novamente antes de continuar.');
+        }
+        const at = new Date().toISOString();
+        const updated = {
+            ...current, cancelled: true, cancelledAt: at, cancelReason: reason, updatedAt: at,
+            history: [...current.history, { action: 'Caso cancelado', at, reason }]
+        };
+        assertRecord(updated);
+        await writeCases([updated]);
+        byId('cancelDialog').close();
+        await refresh();
+        showDetail(updated.id);
+        notify('Caso cancelado. Os dados e todo o histórico foram preservados.');
+    } catch (error) { byId('cancelError').textContent = error.message; }
+    finally { busy = false; }
+});
 byId('attachments').addEventListener('click', async event => {
     const button = event.target.closest('[data-download]');
     if (!button) return;
@@ -429,15 +580,19 @@ byId('outcomeForm').addEventListener('submit', event => {
 });
 byId('completeBtn').addEventListener('click', () => transition(3, 4, 'Caso concluído'));
 byId('reactivateBtn').addEventListener('click', () => transition(4, 2, 'Caso reativado para revisão do destino', { outcome: null, address: '', recipient: '', notes: '' }));
-function setView(completed) {
-    completedView = completed; byId('statusFilter').value = '';
-    byId('activeTab').classList.toggle('selected', !completed);
-    byId('completedTab').classList.toggle('selected', completed);
-    byId('activeTab').setAttribute('aria-pressed', String(!completed));
-    byId('completedTab').setAttribute('aria-pressed', String(completed)); render();
+function setView(completed, cancelled = false) {
+    completedView = completed; cancelledView = cancelled; byId('statusFilter').value = '';
+    byId('activeTab').classList.toggle('selected', !completed && !cancelled);
+    byId('completedTab').classList.toggle('selected', completed && !cancelled);
+    byId('cancelledTab').classList.toggle('selected', cancelled);
+    byId('activeTab').setAttribute('aria-pressed', String(!completed && !cancelled));
+    byId('completedTab').setAttribute('aria-pressed', String(completed && !cancelled));
+    byId('cancelledTab').setAttribute('aria-pressed', String(cancelled));
+    render();
 }
 byId('activeTab').addEventListener('click', () => setView(false));
 byId('completedTab').addEventListener('click', () => setView(true));
+byId('cancelledTab').addEventListener('click', () => setView(false, true));
 byId('search').addEventListener('input', render);
 byId('statusFilter').addEventListener('change', render);
 byId('excelBtn').addEventListener('click', async () => {
@@ -475,10 +630,13 @@ byId('importFile').addEventListener('change', async event => {
         if (new Set(backup.cases.map(record => record.id)).size !== backup.cases.length) throw new Error('O backup contém casos duplicados.');
         const current = await loadCases();
         const overlapping = backup.cases.filter(record => current.some(item => item.id === record.id)).length;
-        if (!window.confirm(`Restaurar ${backup.cases.length} caso(s)? ${overlapping} caso(s) com o mesmo ID serão substituídos pelo backup. Os demais casos atuais serão preservados.`)) return;
-        await writeCases(backup.cases); await refresh();
+        const locallyCancelled = new Map(current.filter(record => record.cancelled).map(record => [record.id, record]));
+        const preservedCancelled = backup.cases.filter(record => locallyCancelled.has(record.id)).length;
+        if (!window.confirm(`Restaurar ${backup.cases.length} caso(s)? ${overlapping} caso(s) com o mesmo ID serão substituídos pelo backup, exceto ${preservedCancelled} caso(s) já cancelado(s) neste navegador. Os demais casos atuais serão preservados.`)) return;
+        const restored = backup.cases.map(record => locallyCancelled.get(record.id) || record);
+        await writeCases(restored); await refresh();
         if (byId('detailDialog').open) showDetail(selectedId);
-        notify(`${backup.cases.length} caso(s) restaurado(s), incluindo os e-mails.`);
+        notify(`${backup.cases.length} caso(s) restaurado(s), incluindo os e-mails.${preservedCancelled ? ` ${preservedCancelled} caso(s) cancelado(s) localmente permaneceram cancelados.` : ''}`);
     } catch (error) { notify(`Backup não importado: ${error.message}`, true); }
     finally { busy = false; }
 });

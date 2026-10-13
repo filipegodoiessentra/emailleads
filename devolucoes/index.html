@@ -31,6 +31,7 @@
             <div class="tabs" role="group" aria-label="Seção de casos">
                 <button id="activeTab" class="selected" aria-pressed="true">Em andamento <span id="activeCount">0</span></button>
                 <button id="completedTab" aria-pressed="false">Concluídos <span id="completedCount">0</span></button>
+                <button id="cancelledTab" aria-pressed="false">Cancelados <span id="cancelledCount">0</span></button>
             </div>
             <div class="filters">
                 <input id="search" type="search" placeholder="Buscar caso ou vendedor" aria-label="Buscar caso ou vendedor">
@@ -41,6 +42,7 @@
                     <option value="2">2 · Resposta recebida</option>
                     <option value="3">3 · Destino registrado</option>
                     <option value="4">4 · Concluído</option>
+                    <option value="cancelled">Cancelado</option>
                 </select>
             </div>
         </div>
@@ -106,9 +108,62 @@
             </form>
         </section>
         <section id="outcomeSummary" hidden><h3>Destino registrado</h3><p id="outcomeText" class="preserve"></p></section>
-        <div class="actions"><button id="completeBtn" class="primary" hidden><i data-lucide="check" aria-hidden="true"></i> Concluir caso</button><button id="reactivateBtn" hidden><i data-lucide="rotate-ccw" aria-hidden="true"></i> Reativar caso</button></div>
+        <p id="cancelledNotice" class="error" hidden></p>
+        <div id="caseActions" class="actions"><button id="editBtn"><i data-lucide="pencil" aria-hidden="true"></i> Editar caso</button><button id="cancelBtn" class="danger"><i data-lucide="ban" aria-hidden="true"></i> Cancelar caso</button><button id="completeBtn" class="primary" hidden><i data-lucide="check" aria-hidden="true"></i> Concluir caso</button><button id="reactivateBtn" hidden><i data-lucide="rotate-ccw" aria-hidden="true"></i> Reativar caso</button></div>
         <section><h3>Histórico</h3><ul id="history" class="history"></ul></section>
         <p id="detailError" class="error" role="alert"></p>
+    </dialog>
+
+    <dialog id="editDialog" aria-labelledby="editTitle">
+        <div class="dialog-heading"><h2 id="editTitle">Editar caso</h2><button class="icon" data-close="editDialog" title="Fechar" aria-label="Fechar"><i data-lucide="x" aria-hidden="true"></i></button></div>
+        <form id="editForm">
+            <label for="editReference">Identificação da amostra / assunto</label>
+            <input id="editReference" maxlength="180" required>
+            <label for="editSeller">Vendedor</label>
+            <select id="editSeller" required><option value="">Selecione o vendedor</option></select>
+            <label for="editStage">Etapa</label>
+            <select id="editStage">
+                <option value="0">Envio pendente</option>
+                <option value="1">1 · E-mail enviado</option>
+                <option value="2">2 · Resposta recebida</option>
+                <option value="3">3 · Destino registrado</option>
+                <option value="4">4 · Concluído</option>
+            </select>
+            <label for="editOutcome">Destino</label>
+            <select id="editOutcome">
+                <option value="">Não informado</option>
+                <option value="resent">Reenviado</option>
+                <option value="stock">Voltou para estoque</option>
+            </select>
+            <label for="editAddress">Endereço confirmado</label>
+            <textarea id="editAddress" rows="2" maxlength="2000"></textarea>
+            <label for="editRecipient">Destinatário / recebedor responsável</label>
+            <input id="editRecipient" maxlength="300">
+            <label for="editNotes">Observações / rastreio</label>
+            <textarea id="editNotes" rows="2" maxlength="2000"></textarea>
+            <label for="editMainEmail">Substituir e-mail principal (.msg ou .eml)</label>
+            <input id="editMainEmail" type="file" accept=".msg,.eml">
+            <p id="editMainEmailName" class="file-name"></p>
+            <label for="editResponseEmail">Substituir resposta (.msg ou .eml)</label>
+            <input id="editResponseEmail" type="file" accept=".msg,.eml">
+            <p id="editResponseEmailName" class="file-name"></p>
+            <label class="choice"><input id="removeResponseEmail" type="checkbox"> Remover e-mail de resposta</label>
+            <label for="editReason">Motivo da edição <span class="required">Obrigatório</span></label>
+            <textarea id="editReason" rows="3" maxlength="500" required></textarea>
+            <p id="editError" class="error" role="alert"></p>
+            <div class="dialog-actions"><button type="button" data-close="editDialog">Voltar</button><button type="submit" class="primary"><i data-lucide="save" aria-hidden="true"></i> Salvar edição</button></div>
+        </form>
+    </dialog>
+
+    <dialog id="cancelDialog" aria-labelledby="cancelTitle">
+        <div class="dialog-heading"><h2 id="cancelTitle">Cancelar caso</h2><button class="icon" data-close="cancelDialog" title="Fechar" aria-label="Fechar"><i data-lucide="x" aria-hidden="true"></i></button></div>
+        <p>O caso e seus e-mails serão mantidos no histórico. O cancelamento é definitivo e não poderá ser desfeito.</p>
+        <form id="cancelForm">
+            <label for="cancelReason">Motivo do cancelamento <span class="required">Obrigatório</span></label>
+            <textarea id="cancelReason" rows="3" maxlength="500" required></textarea>
+            <p id="cancelError" class="error" role="alert"></p>
+            <div class="dialog-actions"><button type="button" data-close="cancelDialog">Voltar</button><button type="submit" class="danger">Confirmar cancelamento</button></div>
+        </form>
     </dialog>
 </body>
 </html>
