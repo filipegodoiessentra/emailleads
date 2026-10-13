@@ -74,7 +74,7 @@ async function run() {
         assert(await page.locator('#seller').isDisabled());
         await page.locator('#mainFile').setInputFiles(email);
         await page.waitForFunction(() => !document.getElementById('seller').disabled);
-        assert.deepEqual(await page.locator('#seller option').allTextContents(), ['Selecione o vendedor', '338 - Matheus Silva', '340 - Pablo Silva', '346 - Cristiana Roseto']);
+        assert.deepEqual(await page.locator('#seller option').allTextContents(), ['Selecione o vendedor', '337 - Bruna Giovanini', '338 - Matheus Silva', '340 - Pablo Silva', '346 - Cristiana Roseto']);
         await page.locator('#seller').selectOption('346');
         await page.locator('#reference').fill('Amostra <script>segura</script>');
         await page.locator('#createBtn').click();
