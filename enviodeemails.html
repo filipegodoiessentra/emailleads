@@ -50,12 +50,12 @@
                         type="button" 
                         id="openAddSellerModalBtn" 
                         class="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:underline cursor-pointer transition-colors"
-                        title="Cadastrar novo vendedor"
+                        title="Gerenciar vendedores (adicionar / excluir)"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                         </svg>
-                        Adicionar conta
+                        Gerenciar contas
                     </button>
                 </div>
                 <div class="relative">
@@ -98,120 +98,198 @@
         </div>
     </div>
 
-    <!-- Modal Adicionar Conta / Vendedor -->
+    <!-- Modal Gerenciar Contas (Adicionar e Excluir) -->
     <div id="addSellerModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[92vh]">
             <!-- Modal Header -->
-            <div class="bg-blue-600 px-5 py-3.5 flex items-center justify-between text-white">
+            <div class="bg-blue-600 px-5 py-3.5 flex items-center justify-between text-white flex-shrink-0">
                 <h2 class="font-semibold text-base flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
-                    Adicionar Nova Conta
+                    Gerenciar Contas de Vendedores
                 </h2>
-                <button type="button" id="closeAddSellerModalBtn" class="text-blue-100 hover:text-white text-xl leading-none cursor-pointer" aria-label="Fechar">&times;</button>
+                <button type="button" id="closeAddSellerModalBtn" class="text-blue-100 hover:text-white text-xl leading-none cursor-pointer p-1" aria-label="Fechar">&times;</button>
             </div>
             
-            <!-- Modal Body / Form -->
-            <form id="addSellerForm" class="p-5 space-y-4">
-                <div>
-                    <label for="newSellerName" class="block text-xs font-semibold text-gray-700 uppercase mb-1">Nome Completo</label>
-                    <input 
-                        type="text" 
-                        id="newSellerName" 
-                        required 
-                        placeholder="Ex: Carlos Eduardo" 
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    />
-                </div>
+            <div class="p-5 overflow-y-auto space-y-5">
+                <!-- Form Adicionar Conta -->
+                <form id="addSellerForm" class="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <p class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                        </svg>
+                        Adicionar Nova Conta
+                    </p>
 
-                <div>
-                    <label for="newSellerEmail" class="block text-xs font-semibold text-gray-700 uppercase mb-1">E-mail</label>
-                    <input 
-                        type="email" 
-                        id="newSellerEmail" 
-                        required 
-                        placeholder="Ex: CarlosEduardo@essentra.com" 
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    />
-                </div>
+                    <div>
+                        <label for="newSellerName" class="block text-xs font-semibold text-gray-700 mb-1">Nome Completo</label>
+                        <input 
+                            type="text" 
+                            id="newSellerName" 
+                            required 
+                            placeholder="Ex: Carlos Eduardo" 
+                            class="w-full px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        />
+                    </div>
 
-                <div>
-                    <label for="newSellerId" class="block text-xs font-semibold text-gray-700 uppercase mb-1">Código / ID <span class="text-gray-400 font-normal lowercase">(opcional)</span></label>
-                    <input 
-                        type="text" 
-                        id="newSellerId" 
-                        placeholder="Ex: 350 (automático se vazio)" 
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    />
-                </div>
+                    <div>
+                        <label for="newSellerEmail" class="block text-xs font-semibold text-gray-700 mb-1">E-mail</label>
+                        <input 
+                            type="email" 
+                            id="newSellerEmail" 
+                            required 
+                            placeholder="Ex: CarlosEduardo@essentra.com" 
+                            class="w-full px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        />
+                    </div>
 
-                <p id="addSellerError" class="text-red-500 text-xs hidden"></p>
+                    <div>
+                        <label for="newSellerId" class="block text-xs font-semibold text-gray-700 mb-1">Código / ID <span class="text-gray-400 font-normal lowercase">(opcional)</span></label>
+                        <input 
+                            type="text" 
+                            id="newSellerId" 
+                            placeholder="Ex: 350 (automático se vazio)" 
+                            class="w-full px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        />
+                    </div>
 
-                <!-- Custom Sellers List (para gerenciar/excluir contas adicionadas) -->
-                <div id="customSellersListSection" class="border-t border-gray-200 pt-3 hidden">
-                    <p class="text-xs font-semibold text-gray-500 mb-2 uppercase">Contas adicionadas por você:</p>
-                    <div id="customSellersList" class="max-h-28 overflow-y-auto space-y-1.5 text-xs"></div>
-                </div>
+                    <p id="addSellerError" class="text-red-500 text-xs hidden"></p>
 
-                <!-- Modal Actions -->
-                <div class="flex items-center justify-end gap-2 pt-2">
-                    <button 
-                        type="button" 
-                        id="cancelAddSellerBtn" 
-                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
-                    >
-                        Cancelar
-                    </button>
                     <button 
                         type="submit" 
-                        class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                        class="w-full py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
                     >
-                        Salvar Conta
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                        Salvar Nova Conta
                     </button>
+                </form>
+
+                <!-- List: Contas Cadastradas (Excluir) -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Contas Ativas (<span id="sellersCount">0</span>)
+                        </p>
+                        <button 
+                            type="button" 
+                            id="restoreDefaultsBtn" 
+                            class="text-xs text-blue-600 hover:text-blue-800 hover:underline cursor-pointer hidden"
+                        >
+                            Restaurar padrões
+                        </button>
+                    </div>
+                    <div id="sellersList" class="space-y-1.5 max-h-52 overflow-y-auto pr-1"></div>
                 </div>
-            </form>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="border-t border-gray-200 px-5 py-3 bg-gray-50 flex items-center justify-end flex-shrink-0">
+                <button 
+                    type="button" 
+                    id="cancelAddSellerBtn" 
+                    class="px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                >
+                    Fechar
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
-        // Data structure for default sellers
+        // Vendedores padrão do sistema
         const defaultSellers = [
             { id: "337", name: "Bruna Giovanini", firstName: "Bruna", email: "BrunaGiovanini@essentra.com" },
             { id: "338", name: "Matheus Silva", firstName: "Matheus", email: "MatheusSilva@essentra.com" },
             { id: "340", name: "Pablo Silva", firstName: "Pablo", email: "PabloSilva@essentra.com" },
-            { id: "346", name: "Cristiana Roseto", firstName: "Cristiana", email: "CristianaRoseto@essentra.com" },
-            { id: "300", name: "teste", firstName: "teste", email: "teste@essentra.com" }
+            { id: "346", name: "Cristiana Roseto", firstName: "Cristiana", email: "CristianaRoseto@essentra.com" }
         ];
 
-        const STORAGE_KEY = 'emailleads_custom_sellers';
+        const STORAGE_CUSTOM = 'emailleads_custom_sellers';
+        const STORAGE_DELETED = 'emailleads_deleted_sellers';
 
         function loadCustomSellers() {
             try {
-                const stored = localStorage.getItem(STORAGE_KEY);
+                const stored = localStorage.getItem(STORAGE_CUSTOM);
                 return stored ? JSON.parse(stored) : [];
             } catch (e) {
                 return [];
             }
         }
 
-        function saveCustomSellers(customList) {
+        function saveCustomSellers(list) {
             try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(customList));
+                localStorage.setItem(STORAGE_CUSTOM, JSON.stringify(list));
             } catch (e) {
-                console.error("Erro ao salvar no localStorage:", e);
+                console.error("Erro ao salvar custom sellers:", e);
+            }
+        }
+
+        function loadDeletedSellerIds() {
+            try {
+                const stored = localStorage.getItem(STORAGE_DELETED);
+                return stored ? JSON.parse(stored) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveDeletedSellerIds(ids) {
+            try {
+                localStorage.setItem(STORAGE_DELETED, JSON.stringify(ids));
+            } catch (e) {
+                console.error("Erro ao salvar deleted sellers:", e);
             }
         }
 
         function getAllSellers() {
             const custom = loadCustomSellers();
-            const merged = [...defaultSellers];
-            custom.forEach(c => {
-                if (!merged.some(m => m.id === c.id)) {
-                    merged.push(c);
+            const deleted = loadDeletedSellerIds();
+            const merged = [];
+            const seen = new Set();
+
+            [...defaultSellers, ...custom].forEach(s => {
+                if (!seen.has(s.id) && !deleted.includes(s.id)) {
+                    seen.add(s.id);
+                    merged.push(s);
                 }
             });
             return merged;
+        }
+
+        function deleteSeller(idToDelete) {
+            // Se for customizado, remove de customSellers
+            let custom = loadCustomSellers();
+            const isCustom = custom.some(s => s.id === idToDelete);
+            if (isCustom) {
+                custom = custom.filter(s => s.id !== idToDelete);
+                saveCustomSellers(custom);
+            } else {
+                // Se for padrão, registra no array de IDs deletados
+                const deleted = loadDeletedSellerIds();
+                if (!deleted.includes(idToDelete)) {
+                    deleted.push(idToDelete);
+                    saveDeletedSellerIds(deleted);
+                }
+            }
+
+            // Se o vendedor excluído estava selecionado, limpa a seleção
+            if (sellerSelect.value === idToDelete) {
+                sellerSelect.value = '';
+            }
+
+            initSelect();
+            renderSellersList();
+            updateUI();
+        }
+
+        function restoreDefaultSellers() {
+            saveDeletedSellerIds([]);
+            initSelect();
+            renderSellersList();
+            updateUI();
         }
 
         // DOM Elements
@@ -229,6 +307,9 @@
         const cancelModalBtn = document.getElementById('cancelAddSellerBtn');
         const addSellerForm = document.getElementById('addSellerForm');
         const addSellerError = document.getElementById('addSellerError');
+        const sellersListEl = document.getElementById('sellersList');
+        const sellersCountEl = document.getElementById('sellersCount');
+        const restoreDefaultsBtn = document.getElementById('restoreDefaultsBtn');
 
         // Atualiza destaque visual dos botões de contatos
         function updateChipSelection(selectedId) {
@@ -243,60 +324,58 @@
             });
         }
 
-        // Renderiza lista de contas adicionadas dentro do modal
-        function renderCustomSellersList() {
-            const listSection = document.getElementById('customSellersListSection');
-            const listContainer = document.getElementById('customSellersList');
-            const customSellers = loadCustomSellers();
+        // Renderiza lista de contas dentro do modal permitindo exclusão
+        function renderSellersList() {
+            if (!sellersListEl) return;
+            const all = getAllSellers();
+            const custom = loadCustomSellers();
+            const deleted = loadDeletedSellerIds();
 
-            if (!listSection || !listContainer) return;
+            sellersCountEl.textContent = all.length;
 
-            if (customSellers.length === 0) {
-                listSection.classList.add('hidden');
-                listContainer.innerHTML = '';
+            // Mostra botão de restaurar se algum padrão foi deletado
+            if (deleted.length > 0) {
+                restoreDefaultsBtn.classList.remove('hidden');
+            } else {
+                restoreDefaultsBtn.classList.add('hidden');
+            }
+
+            if (all.length === 0) {
+                sellersListEl.innerHTML = '<p class="text-xs text-gray-400 italic py-2 text-center">Nenhum vendedor cadastrado.</p>';
                 return;
             }
 
-            listSection.classList.remove('hidden');
-            listContainer.innerHTML = '';
-
-            customSellers.forEach(seller => {
+            sellersListEl.innerHTML = '';
+            all.forEach(seller => {
+                const isCustom = custom.some(c => c.id === seller.id);
                 const item = document.createElement('div');
-                item.className = 'flex items-center justify-between bg-gray-50 px-2.5 py-1.5 rounded border border-gray-200';
+                item.className = 'flex items-center justify-between p-2 rounded-lg border border-gray-200 bg-white hover:border-gray-300 transition-all';
                 item.innerHTML = `
                     <div class="truncate mr-2">
-                        <span class="font-semibold text-gray-800">${seller.id} - ${seller.name}</span>
+                        <div class="flex items-center gap-1.5">
+                            <span class="font-semibold text-gray-800 text-xs">${seller.id} - ${seller.name}</span>
+                            ${isCustom ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded font-medium">Personalizado</span>' : ''}
+                        </div>
                         <span class="text-gray-500 text-[11px] block truncate">${seller.email}</span>
                     </div>
-                    <button type="button" class="text-red-500 hover:text-red-700 text-xs px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors cursor-pointer" title="Remover conta">
-                        ✕
+                    <button type="button" class="text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded text-xs transition-colors cursor-pointer flex items-center gap-1 flex-shrink-0" title="Excluir conta">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                        Excluir
                     </button>
                 `;
                 item.querySelector('button').addEventListener('click', () => {
-                    removeCustomSeller(seller.id);
+                    deleteSeller(seller.id);
                 });
-                listContainer.appendChild(item);
+                sellersListEl.appendChild(item);
             });
-        }
-
-        function removeCustomSeller(idToRemove) {
-            let customSellers = loadCustomSellers();
-            customSellers = customSellers.filter(s => s.id !== idToRemove);
-            saveCustomSellers(customSellers);
-
-            if (sellerSelect.value === idToRemove) {
-                sellerSelect.value = '';
-            }
-
-            initSelect();
-            renderCustomSellersList();
-            updateUI();
         }
 
         function openModal() {
             addSellerForm.reset();
             addSellerError.classList.add('hidden');
-            renderCustomSellersList();
+            renderSellersList();
             modal.classList.remove('hidden');
             setTimeout(() => document.getElementById('newSellerName').focus(), 50);
         }
@@ -341,11 +420,19 @@
             customSellers.push(newSeller);
             saveCustomSellers(customSellers);
 
+            // Se esse ID estava na lista de deletados, remove-o
+            let deleted = loadDeletedSellerIds();
+            if (deleted.includes(id)) {
+                deleted = deleted.filter(d => d !== id);
+                saveDeletedSellerIds(deleted);
+            }
+
             initSelect();
             sellerSelect.value = id;
             updateChipSelection(id);
             updateUI();
-            closeModal();
+            addSellerForm.reset();
+            renderSellersList();
         }
 
         // Initialize Select Options and Quick Chips
@@ -377,13 +464,13 @@
                 }
             });
 
-            // Botão rápido para adicionar nova conta ao lado dos chips
+            // Botão rápido para gerenciar/adicionar conta ao lado dos chips
             if (sellerChips) {
                 const addChip = document.createElement('button');
                 addChip.type = 'button';
                 addChip.className = 'px-2 py-1 text-xs font-medium rounded-md border border-dashed border-blue-400 bg-blue-50/60 text-blue-700 hover:bg-blue-100 transition-all cursor-pointer flex items-center gap-1';
-                addChip.innerHTML = '<span class="text-sm font-bold leading-none">+</span> Conta';
-                addChip.title = 'Adicionar nova conta de vendedor';
+                addChip.innerHTML = '<span class="text-sm font-bold leading-none">+</span> Gerenciar';
+                addChip.title = 'Adicionar ou excluir contas de vendedores';
                 addChip.addEventListener('click', openModal);
                 sellerChips.appendChild(addChip);
             }
@@ -463,7 +550,6 @@
                 : `Por gentileza, poderia entrar em contato com o lead ${leadsStr} o mais breve possível? Ele realizou um contato por meio do formulário mas já tem cadastro no MSS.`;
 
             // Construct Body
-            // We use standard string template literals, but then manually format the line breaks for Outlook.
             const rawBodyLines = [
                 `${seller.firstName}, Bom Dia!`,
                 ``,
@@ -474,16 +560,12 @@
                 `Att.,`
             ];
 
-            // Encode each line separately, then join with Outlook's preferred newline format
             const encodedBody = rawBodyLines.map(line => encodeURIComponent(line)).join('%0D%0A');
-
-            // Build final mailto string
             const mailtoLink = `mailto:${to}?cc=${cc}&subject=${encodedSubject}&body=${encodedBody}`;
 
-            // Create a temporary anchor element to click
             const link = document.createElement('a');
             link.href = mailtoLink;
-            link.target = "_blank"; // Tries to prevent current page from unloading if default mail app isn't set perfectly
+            link.target = "_blank";
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -507,6 +589,7 @@
             }
         });
         addSellerForm.addEventListener('submit', handleAddSeller);
+        restoreDefaultsBtn.addEventListener('click', restoreDefaultSellers);
 
         // Run init on load
         initSelect();

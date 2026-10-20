@@ -7,19 +7,58 @@ const defaultSellers = [
     { id: '346', name: 'Cristiana Roseto', firstName: 'Cristiana', email: 'CristianaRoseto@essentra.com' },
 ];
 
+const STORAGE_CUSTOM = 'emailleads_custom_sellers';
+const STORAGE_DELETED = 'emailleads_deleted_sellers';
+
 function loadCustomSellers() {
     try {
-        const stored = localStorage.getItem('emailleads_custom_sellers');
+        const stored = localStorage.getItem(STORAGE_CUSTOM);
         return stored ? JSON.parse(stored) : [];
     } catch {
         return [];
     }
 }
 
-const sellers = [
-    ...defaultSellers,
-    ...loadCustomSellers().filter(c => !defaultSellers.some(d => d.id === c.id))
-];
+function saveCustomSellers(list) {
+    try {
+        localStorage.setItem(STORAGE_CUSTOM, JSON.stringify(list));
+    } catch (e) {
+        console.error('Erro ao salvar custom sellers:', e);
+    }
+}
+
+function loadDeletedSellerIds() {
+    try {
+        const stored = localStorage.getItem(STORAGE_DELETED);
+        return stored ? JSON.parse(stored) : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveDeletedSellerIds(ids) {
+    try {
+        localStorage.setItem(STORAGE_DELETED, JSON.stringify(ids));
+    } catch (e) {
+        console.error('Erro ao salvar deleted sellers:', e);
+    }
+}
+
+function getAllSellers() {
+    const custom = loadCustomSellers();
+    const deleted = loadDeletedSellerIds();
+    const merged = [];
+    const seen = new Set();
+    [...defaultSellers, ...custom].forEach(s => {
+        if (!seen.has(s.id) && !deleted.includes(s.id)) {
+            seen.add(s.id);
+            merged.push(s);
+        }
+    });
+    return merged;
+}
+
+let sellers = getAllSellers();
 const copies = ['BrazilWhse@essentra.com', 'EmersonSantos@essentra.com', 'BrazilSamples@essentra.com'];
 const stages = ['Envio pendente', 'E-mail enviado', 'Resposta recebida', 'Destino registrado', 'Concluído'];
 const maxEmailSize = 20 * 1024 * 1024;
@@ -387,8 +426,154 @@ async function exportExcel(records) {
         `devolucoes-${workbook.created.toISOString().replace(/[:.]/g, '-')}.xlsx`);
 }
 
-byId('seller').append(...sellers.map(seller => new Option(`${seller.id} - ${seller.name}`, seller.id)));
-byId('editSeller').append(...sellers.map(seller => new Option(`${seller.id} - ${seller.name}`, seller.id)));
+function refreshSellers() {
+    sellers = getAllSellers();
+    const currentSellerVal = byId('seller').value;
+    const currentEditVal = byId('editSeller').value;
+
+    byId('seller').innerHTML = '<option value="">Selecione o vendedor</option>';
+    byId('seller').append(...sellers.map(s => new Option(`${s.id} - ${s.name}`, s.id)));
+    if (sellers.some(s => s.id === currentSellerVal)) byId('seller').value = currentSellerVal;
+
+    byId('editSeller').innerHTML = '<option value="">Selecione o vendedor</option>';
+    byId('editSeller').append(...sellers.map(s => new Option(`${s.id} - ${s.name}`, s.id)));
+    if (sellers.some(s => s.id === currentEditVal)) byId('editSeller').value = currentEditVal;
+
+    updatePreview();
+    renderDevSellersList();
+}
+
+function deleteSeller(idToDelete) {
+    let custom = loadCustomSellers();
+    const isCustom = custom.some(s => s.id === idToDelete);
+    if (isCustom) {
+        custom = custom.filter(s => s.id !== idToDelete);
+        saveCustomSellers(custom);
+    } else {
+        const deleted = loadDeletedSellerIds();
+        if (!deleted.includes(idToDelete)) {
+            deleted.push(idToDelete);
+            saveDeletedSellerIds(deleted);
+        }
+    }
+    refreshSellers();
+}
+
+function renderDevSellersList() {
+    const listEl = byId('devSellersList');
+    const countEl = byId('devSellersCount');
+    const restoreBtn = byId('devRestoreDefaultsBtn');
+    if (!listEl) return;
+
+    const all = getAllSellers();
+    const custom = loadCustomSellers();
+    const deleted = loadDeletedSellerIds();
+
+    if (countEl) countEl.textContent = all.length;
+    if (restoreBtn) restoreBtn.hidden = deleted.length === 0;
+
+    if (all.length === 0) {
+        listEl.innerHTML = '<p style="margin:8px 0; font-size:12px; color:var(--muted); text-align:center;">Nenhum vendedor cadastrado.</p>';
+        return;
+    }
+
+    listEl.innerHTML = '';
+    all.forEach(seller => {
+        const isCustom = custom.some(c => c.id === seller.id);
+        const item = document.createElement('div');
+        item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px solid var(--line); border-radius:6px; padding:8px 12px;';
+        item.innerHTML = `
+            <div style="min-width:0; overflow:hidden; margin-right:8px;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <strong style="font-size:12px; display:inline;">${seller.id} - ${seller.name}</strong>
+                    ${isCustom ? '<span style="font-size:10px; background:#eaf2fb; color:var(--blue); padding:1px 5px; border-radius:3px;">Personalizado</span>' : ''}
+                </div>
+                <small style="color:var(--muted); font-size:11px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${seller.email}</small>
+            </div>
+            <button type="button" class="danger" style="min-height:auto; padding:4px 8px; font-size:11px; flex-shrink:0;" title="Excluir vendedor">
+                <i data-lucide="trash-2" aria-hidden="true"></i> Excluir
+            </button>
+        `;
+        item.querySelector('button').addEventListener('click', () => {
+            deleteSeller(seller.id);
+        });
+        listEl.appendChild(item);
+    });
+    icons();
+}
+
+function handleDevAddSeller(e) {
+    e.preventDefault();
+    const nameInput = byId('devSellerName');
+    const emailInput = byId('devSellerEmail');
+    const idInput = byId('devSellerId');
+    const errorEl = byId('devSellerError');
+
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
+    let id = idInput.value.trim();
+
+    if (!name || !email) {
+        errorEl.textContent = 'Nome e e-mail são obrigatórios.';
+        errorEl.hidden = false;
+        return;
+    }
+
+    const currentSellers = getAllSellers();
+
+    if (!id) {
+        const numericIds = currentSellers
+            .map(s => parseInt(s.id, 10))
+            .filter(n => !isNaN(n));
+        const maxId = numericIds.length > 0 ? Math.max(...numericIds) : 350;
+        id = String(maxId + 1);
+    }
+
+    if (currentSellers.some(s => s.id === id)) {
+        errorEl.textContent = `Já existe um vendedor com o código ${id}.`;
+        errorEl.hidden = false;
+        return;
+    }
+
+    const firstName = name.split(/\s+/)[0];
+    const newSeller = { id, name, firstName, email };
+
+    const customSellers = loadCustomSellers();
+    customSellers.push(newSeller);
+    saveCustomSellers(customSellers);
+
+    let deleted = loadDeletedSellerIds();
+    if (deleted.includes(id)) {
+        deleted = deleted.filter(d => d !== id);
+        saveDeletedSellerIds(deleted);
+    }
+
+    refreshSellers();
+    byId('seller').value = id;
+    nameInput.value = '';
+    emailInput.value = '';
+    idInput.value = '';
+    errorEl.hidden = true;
+    updatePreview();
+}
+
+function openSellerDialog() {
+    byId('devSellerForm').reset();
+    byId('devSellerError').hidden = true;
+    renderDevSellersList();
+    byId('sellerDialog').showModal();
+}
+
+byId('sellersBtn').addEventListener('click', openSellerDialog);
+byId('newManageSellersBtn')?.addEventListener('click', openSellerDialog);
+byId('editManageSellersBtn')?.addEventListener('click', openSellerDialog);
+byId('devSellerForm').addEventListener('submit', handleDevAddSeller);
+byId('devRestoreDefaultsBtn').addEventListener('click', () => {
+    saveDeletedSellerIds([]);
+    refreshSellers();
+});
+
+refreshSellers();
 document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => { if (!busy) byId(button.dataset.close).close(); }));
 document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); }));
 byId('newBtn').addEventListener('click', () => {

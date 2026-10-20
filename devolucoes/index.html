@@ -18,6 +18,7 @@
         <div class="heading">
             <div><h1>Controle de devoluções</h1></div>
             <div class="actions">
+                <button id="sellersBtn" title="Gerenciar contas de vendedores"><i data-lucide="users" aria-hidden="true"></i> Vendedores</button>
                 <button id="excelBtn" title="Baixar todos os casos e histórico em Excel (.xlsx)" disabled><i data-lucide="file-spreadsheet" aria-hidden="true"></i> Excel</button>
                 <button id="exportBtn" title="Baixar backup JSON"><i data-lucide="download" aria-hidden="true"></i> Backup JSON</button>
                 <button id="importBtn" title="Restaurar backup JSON"><i data-lucide="upload" aria-hidden="true"></i> Restaurar</button>
@@ -68,7 +69,10 @@
             <fieldset id="caseFields" disabled>
                 <label for="reference">Identificação da amostra / assunto</label>
                 <input id="reference" maxlength="180" required placeholder="Ex.: Amostra L26-0389583">
-                <label for="seller">2. Vendedor</label>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; margin-bottom:8px;">
+                    <label for="seller" style="margin:0;">2. Vendedor</label>
+                    <button type="button" id="newManageSellersBtn" style="min-height:auto; padding:2px 8px; font-size:12px; border:none; background:none; color:var(--blue); cursor:pointer;">+ Gerenciar contas</button>
+                </div>
                 <select id="seller" required><option value="">Selecione o vendedor</option></select>
                 <div class="preview"><h3>E-mail de notificação</h3><p id="recipients"></p><p id="subjectPreview"></p><pre id="bodyPreview">Selecione o vendedor.</pre></div>
             </fieldset>
@@ -119,7 +123,10 @@
         <form id="editForm">
             <label for="editReference">Identificação da amostra / assunto</label>
             <input id="editReference" maxlength="180" required>
-            <label for="editSeller">Vendedor</label>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; margin-bottom:8px;">
+                <label for="editSeller" style="margin:0;">Vendedor</label>
+                <button type="button" id="editManageSellersBtn" style="min-height:auto; padding:2px 8px; font-size:12px; border:none; background:none; color:var(--blue); cursor:pointer;">+ Gerenciar contas</button>
+            </div>
             <select id="editSeller" required><option value="">Selecione o vendedor</option></select>
             <label for="editStage">Etapa</label>
             <select id="editStage">
@@ -164,6 +171,41 @@
             <p id="cancelError" class="error" role="alert"></p>
             <div class="dialog-actions"><button type="button" data-close="cancelDialog">Voltar</button><button type="submit" class="danger">Confirmar cancelamento</button></div>
         </form>
+    </dialog>
+
+    <dialog id="sellerDialog" aria-labelledby="sellerDialogTitle">
+        <div class="dialog-heading">
+            <h2 id="sellerDialogTitle">Gerenciar Vendedores</h2>
+            <button type="button" class="icon" data-close="sellerDialog" title="Fechar" aria-label="Fechar">
+                <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        <form id="devSellerForm" style="background:#f8fafc; padding:16px; border-radius:6px; border:1px solid var(--line); margin-bottom:20px;">
+            <h3 style="margin-top:0; font-size:12px; font-weight:700; text-transform:uppercase; color:var(--ink);">Adicionar Nova Conta</h3>
+            <label for="devSellerName" style="margin-top:10px;">Nome Completo</label>
+            <input id="devSellerName" required placeholder="Ex.: Carlos Eduardo">
+            <label for="devSellerEmail">E-mail</label>
+            <input id="devSellerEmail" type="email" required placeholder="Ex.: CarlosEduardo@essentra.com">
+            <label for="devSellerId">Código / ID <span class="required" style="float:none; font-weight:normal;">(opcional)</span></label>
+            <input id="devSellerId" placeholder="Ex.: 350 (automático se vazio)">
+            <p id="devSellerError" class="error" role="alert" style="margin-top:10px;" hidden></p>
+            <div style="margin-top:16px; text-align:right;">
+                <button type="submit" class="primary"><i data-lucide="user-plus" aria-hidden="true"></i> Salvar vendedor</button>
+            </div>
+        </form>
+
+        <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 style="margin:0; font-size:12px; font-weight:700; text-transform:uppercase;">Contas Ativas (<span id="devSellersCount">0</span>)</h3>
+                <button type="button" id="devRestoreDefaultsBtn" style="min-height:auto; padding:2px 6px; font-size:12px; border:none; background:none; color:var(--blue); cursor:pointer;" hidden>Restaurar padrões</button>
+            </div>
+            <div id="devSellersList" style="max-height:220px; overflow-y:auto; display:grid; gap:8px;"></div>
+        </div>
+
+        <div class="dialog-actions" style="margin-top:20px;">
+            <button type="button" data-close="sellerDialog">Fechar</button>
+        </div>
     </dialog>
 </body>
 </html>
