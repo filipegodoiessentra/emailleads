@@ -44,7 +44,20 @@
 
             <!-- Select Vendedor -->
             <div>
-                <label for="sellerSelect" class="block text-sm font-medium text-gray-700 mb-1">Vendedor</label>
+                <div class="flex items-center justify-between mb-1">
+                    <label for="sellerSelect" class="block text-sm font-medium text-gray-700">Vendedor</label>
+                    <button 
+                        type="button" 
+                        id="openAddSellerModalBtn" 
+                        class="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:underline cursor-pointer transition-colors"
+                        title="Cadastrar novo vendedor"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                        </svg>
+                        Adicionar conta
+                    </button>
+                </div>
                 <div class="relative">
                     <select 
                         id="sellerSelect" 
@@ -85,15 +98,121 @@
         </div>
     </div>
 
+    <!-- Modal Adicionar Conta / Vendedor -->
+    <div id="addSellerModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <!-- Modal Header -->
+            <div class="bg-blue-600 px-5 py-3.5 flex items-center justify-between text-white">
+                <h2 class="font-semibold text-base flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                    Adicionar Nova Conta
+                </h2>
+                <button type="button" id="closeAddSellerModalBtn" class="text-blue-100 hover:text-white text-xl leading-none cursor-pointer" aria-label="Fechar">&times;</button>
+            </div>
+            
+            <!-- Modal Body / Form -->
+            <form id="addSellerForm" class="p-5 space-y-4">
+                <div>
+                    <label for="newSellerName" class="block text-xs font-semibold text-gray-700 uppercase mb-1">Nome Completo</label>
+                    <input 
+                        type="text" 
+                        id="newSellerName" 
+                        required 
+                        placeholder="Ex: Carlos Eduardo" 
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                </div>
+
+                <div>
+                    <label for="newSellerEmail" class="block text-xs font-semibold text-gray-700 uppercase mb-1">E-mail</label>
+                    <input 
+                        type="email" 
+                        id="newSellerEmail" 
+                        required 
+                        placeholder="Ex: CarlosEduardo@essentra.com" 
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                </div>
+
+                <div>
+                    <label for="newSellerId" class="block text-xs font-semibold text-gray-700 uppercase mb-1">Código / ID <span class="text-gray-400 font-normal lowercase">(opcional)</span></label>
+                    <input 
+                        type="text" 
+                        id="newSellerId" 
+                        placeholder="Ex: 350 (automático se vazio)" 
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                </div>
+
+                <p id="addSellerError" class="text-red-500 text-xs hidden"></p>
+
+                <!-- Custom Sellers List (para gerenciar/excluir contas adicionadas) -->
+                <div id="customSellersListSection" class="border-t border-gray-200 pt-3 hidden">
+                    <p class="text-xs font-semibold text-gray-500 mb-2 uppercase">Contas adicionadas por você:</p>
+                    <div id="customSellersList" class="max-h-28 overflow-y-auto space-y-1.5 text-xs"></div>
+                </div>
+
+                <!-- Modal Actions -->
+                <div class="flex items-center justify-end gap-2 pt-2">
+                    <button 
+                        type="button" 
+                        id="cancelAddSellerBtn" 
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        type="submit" 
+                        class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                        Salvar Conta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
-        // Data structure for sellers - easy to add more in the future
-        const sellers = [
+        // Data structure for default sellers
+        const defaultSellers = [
             { id: "337", name: "Bruna Giovanini", firstName: "Bruna", email: "BrunaGiovanini@essentra.com" },
             { id: "338", name: "Matheus Silva", firstName: "Matheus", email: "MatheusSilva@essentra.com" },
             { id: "340", name: "Pablo Silva", firstName: "Pablo", email: "PabloSilva@essentra.com" },
             { id: "346", name: "Cristiana Roseto", firstName: "Cristiana", email: "CristianaRoseto@essentra.com" },
             { id: "300", name: "teste", firstName: "teste", email: "teste@essentra.com" }
         ];
+
+        const STORAGE_KEY = 'emailleads_custom_sellers';
+
+        function loadCustomSellers() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                return stored ? JSON.parse(stored) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveCustomSellers(customList) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(customList));
+            } catch (e) {
+                console.error("Erro ao salvar no localStorage:", e);
+            }
+        }
+
+        function getAllSellers() {
+            const custom = loadCustomSellers();
+            const merged = [...defaultSellers];
+            custom.forEach(c => {
+                if (!merged.some(m => m.id === c.id)) {
+                    merged.push(c);
+                }
+            });
+            return merged;
+        }
 
         // DOM Elements
         const leadInput = document.getElementById('leadNumber');
@@ -103,10 +222,18 @@
         const previewDiv = document.getElementById('emailPreview');
         const errorMsg = document.getElementById('errorMsg');
 
+        // Modal Elements
+        const modal = document.getElementById('addSellerModal');
+        const openModalBtn = document.getElementById('openAddSellerModalBtn');
+        const closeModalBtn = document.getElementById('closeAddSellerModalBtn');
+        const cancelModalBtn = document.getElementById('cancelAddSellerBtn');
+        const addSellerForm = document.getElementById('addSellerForm');
+        const addSellerError = document.getElementById('addSellerError');
+
         // Atualiza destaque visual dos botões de contatos
         function updateChipSelection(selectedId) {
             if (!sellerChips) return;
-            const buttons = sellerChips.querySelectorAll('button');
+            const buttons = sellerChips.querySelectorAll('button[data-id]');
             buttons.forEach(btn => {
                 if (btn.dataset.id === selectedId) {
                     btn.className = 'px-2.5 py-1 text-xs font-semibold rounded-md border border-blue-600 bg-blue-600 text-white shadow-sm transition-all cursor-pointer';
@@ -116,8 +243,116 @@
             });
         }
 
+        // Renderiza lista de contas adicionadas dentro do modal
+        function renderCustomSellersList() {
+            const listSection = document.getElementById('customSellersListSection');
+            const listContainer = document.getElementById('customSellersList');
+            const customSellers = loadCustomSellers();
+
+            if (!listSection || !listContainer) return;
+
+            if (customSellers.length === 0) {
+                listSection.classList.add('hidden');
+                listContainer.innerHTML = '';
+                return;
+            }
+
+            listSection.classList.remove('hidden');
+            listContainer.innerHTML = '';
+
+            customSellers.forEach(seller => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between bg-gray-50 px-2.5 py-1.5 rounded border border-gray-200';
+                item.innerHTML = `
+                    <div class="truncate mr-2">
+                        <span class="font-semibold text-gray-800">${seller.id} - ${seller.name}</span>
+                        <span class="text-gray-500 text-[11px] block truncate">${seller.email}</span>
+                    </div>
+                    <button type="button" class="text-red-500 hover:text-red-700 text-xs px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors cursor-pointer" title="Remover conta">
+                        ✕
+                    </button>
+                `;
+                item.querySelector('button').addEventListener('click', () => {
+                    removeCustomSeller(seller.id);
+                });
+                listContainer.appendChild(item);
+            });
+        }
+
+        function removeCustomSeller(idToRemove) {
+            let customSellers = loadCustomSellers();
+            customSellers = customSellers.filter(s => s.id !== idToRemove);
+            saveCustomSellers(customSellers);
+
+            if (sellerSelect.value === idToRemove) {
+                sellerSelect.value = '';
+            }
+
+            initSelect();
+            renderCustomSellersList();
+            updateUI();
+        }
+
+        function openModal() {
+            addSellerForm.reset();
+            addSellerError.classList.add('hidden');
+            renderCustomSellersList();
+            modal.classList.remove('hidden');
+            setTimeout(() => document.getElementById('newSellerName').focus(), 50);
+        }
+
+        function closeModal() {
+            modal.classList.add('hidden');
+            addSellerError.classList.add('hidden');
+        }
+
+        function handleAddSeller(e) {
+            e.preventDefault();
+            const name = document.getElementById('newSellerName').value.trim();
+            const email = document.getElementById('newSellerEmail').value.trim();
+            let id = document.getElementById('newSellerId').value.trim();
+
+            if (!name || !email) {
+                addSellerError.textContent = "Nome e e-mail são obrigatórios.";
+                addSellerError.classList.remove('hidden');
+                return;
+            }
+
+            const currentSellers = getAllSellers();
+
+            if (!id) {
+                const numericIds = currentSellers
+                    .map(s => parseInt(s.id, 10))
+                    .filter(n => !isNaN(n));
+                const maxId = numericIds.length > 0 ? Math.max(...numericIds) : 350;
+                id = String(maxId + 1);
+            }
+
+            if (currentSellers.some(s => s.id === id)) {
+                addSellerError.textContent = `Já existe uma conta com o código ${id}. Por favor, escolha outro.`;
+                addSellerError.classList.remove('hidden');
+                return;
+            }
+
+            const firstName = name.split(/\s+/)[0];
+            const newSeller = { id, name, firstName, email };
+
+            const customSellers = loadCustomSellers();
+            customSellers.push(newSeller);
+            saveCustomSellers(customSellers);
+
+            initSelect();
+            sellerSelect.value = id;
+            updateChipSelection(id);
+            updateUI();
+            closeModal();
+        }
+
         // Initialize Select Options and Quick Chips
         function initSelect() {
+            const currentSelected = sellerSelect.value;
+            const sellers = getAllSellers();
+
             sellerSelect.innerHTML = '<option value="" disabled selected>Selecione um vendedor...</option>';
             if (sellerChips) sellerChips.innerHTML = '';
 
@@ -141,6 +376,22 @@
                     sellerChips.appendChild(chip);
                 }
             });
+
+            // Botão rápido para adicionar nova conta ao lado dos chips
+            if (sellerChips) {
+                const addChip = document.createElement('button');
+                addChip.type = 'button';
+                addChip.className = 'px-2 py-1 text-xs font-medium rounded-md border border-dashed border-blue-400 bg-blue-50/60 text-blue-700 hover:bg-blue-100 transition-all cursor-pointer flex items-center gap-1';
+                addChip.innerHTML = '<span class="text-sm font-bold leading-none">+</span> Conta';
+                addChip.title = 'Adicionar nova conta de vendedor';
+                addChip.addEventListener('click', openModal);
+                sellerChips.appendChild(addChip);
+            }
+
+            if (currentSelected && sellers.some(s => s.id === currentSelected)) {
+                sellerSelect.value = currentSelected;
+            }
+            updateChipSelection(sellerSelect.value);
         }
 
         // Extrai os leads ignorando espaços e linhas vazias
@@ -161,7 +412,8 @@
                 errorMsg.classList.add('hidden');
                 
                 // Find selected seller
-                const seller = sellers.find(s => s.id === selectedSellerId);
+                const seller = getAllSellers().find(s => s.id === selectedSellerId);
+                if (!seller) return;
                 
                 // Regras de plural/singular
                 const isPlural = leads.length > 1;
@@ -195,7 +447,7 @@
                 return;
             }
 
-            const seller = sellers.find(s => s.id === selectedSellerId);
+            const seller = getAllSellers().find(s => s.id === selectedSellerId);
             if (!seller) return;
 
             const to = seller.email;
@@ -241,6 +493,20 @@
         leadInput.addEventListener('input', updateUI);
         sellerSelect.addEventListener('change', updateUI);
         sendBtn.addEventListener('click', generateAndSendEmail);
+
+        // Modal Event Listeners
+        openModalBtn.addEventListener('click', openModal);
+        closeModalBtn.addEventListener('click', closeModal);
+        cancelModalBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                closeModal();
+            }
+        });
+        addSellerForm.addEventListener('submit', handleAddSeller);
 
         // Run init on load
         initSelect();
